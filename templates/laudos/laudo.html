@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Laudo Técnico — {{ amostra.numero_lote }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            color: #1a1f36;
+            background: #f4f6f9;
+        }
+
+        .laudo-container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 48px;
+            border-radius: 10px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+        }
+
+        /* Header */
+        .laudo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #0f1923;
+            padding-bottom: 18px;
+            margin-bottom: 28px;
+        }
+        .laudo-brand { font-size: 26px; font-weight: 700; color: #0f1923; letter-spacing: 2px; }
+        .laudo-brand-sub { font-size: 11px; color: #6b7280; letter-spacing: 1px; margin-top: 2px; }
+        .laudo-doc-title { text-align: right; }
+        .laudo-doc-title h1 { font-size: 18px; font-weight: 700; color: #0f1923; }
+        .laudo-doc-title p { font-size: 12px; color: #6b7280; }
+
+        /* Info grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 40px;
+            margin-bottom: 28px;
+            padding: 16px 20px;
+            background: #f8f9fb;
+            border-radius: 8px;
+        }
+        .info-grid dt {
+            font-size: 10px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.8px; color: #6b7280; margin-bottom: 0;
+        }
+        .info-grid dd {
+            font-size: 14px; font-weight: 600; margin: 0 0 10px; color: #1a1f36;
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block; padding: 4px 14px; border-radius: 20px;
+            font-size: 13px; font-weight: 700;
+        }
+        .status-badge.aprovada { background: #d1fae5; color: #065f46; }
+        .status-badge.reprovada { background: #fee2e2; color: #991b1b; }
+
+        /* Table */
+        .results-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+        .results-table th {
+            background: #0f1923; color: #fff; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.6px; padding: 10px 12px; text-align: left;
+        }
+        .results-table td {
+            padding: 9px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px;
+        }
+        .results-table tr:nth-child(even) { background: #f8f9fb; }
+        .conforme { color: #065f46; font-weight: 600; }
+        .nconforme { color: #991b1b; font-weight: 700; }
+
+        /* Footer */
+        .laudo-footer {
+            margin-top: 48px; padding-top: 20px; border-top: 1px solid #e5e7eb;
+            display: flex; justify-content: space-between;
+        }
+        .signature { text-align: center; width: 220px; }
+        .signature-line { border-top: 1px solid #1a1f36; margin-top: 60px; margin-bottom: 6px; }
+        .signature-name { font-size: 13px; font-weight: 600; }
+        .signature-role { font-size: 11px; color: #6b7280; }
+
+        .disclaimer {
+            margin-top: 24px; font-size: 10px; color: #9ca3af; text-align: center;
+            line-height: 1.6;
+        }
+
+        /* Actions bar (não aparece no PDF) */
+        .actions-bar {
+            max-width: 800px; margin: 0 auto 12px; display: flex; gap: 10px;
+        }
+        .btn-action {
+            padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+            text-decoration: none; cursor: pointer; font-family: inherit;
+        }
+        .btn-print { background: #0f1923; color: #fff; border: none; }
+        .btn-back { background: #fff; color: #1a1f36; border: 1px solid #e5e7eb; }
+
+        @media print {
+            body { background: #fff; }
+            .actions-bar { display: none !important; }
+            .laudo-container { box-shadow: none; margin: 0; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- BARRA DE AÇÕES (só aparece na tela) -->
+    {% if not is_pdf %}
+    <div class="actions-bar" style="margin-top: 20px;">
+        <button class="btn-action btn-print" onclick="window.print()">
+            🖨 Imprimir / Salvar PDF
+        </button>
+        <a href="{{ url_for('detalhe_amostra', amostra_id=amostra.id) }}" class="btn-action btn-back">
+            ← Voltar
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="laudo-container">
+        <!-- HEADER -->
+        <div class="laudo-header">
+            <div>
+                <div class="laudo-brand">⬡ CAPETRO</div>
+                <div class="laudo-brand-sub">CPTI — Centro de Pesquisas, Tecnologia e Inovação</div>
+            </div>
+            <div class="laudo-doc-title">
+                <h1>LAUDO TÉCNICO</h1>
+                <p>Emissão: {{ data_emissao }}</p>
+                <p>Laudo nº {{ '%04d' % amostra.id }}/{{ amostra.data_coleta[:4] }}</p>
+            </div>
+        </div>
+
+        <!-- INFORMAÇÕES DA AMOSTRA -->
+        <dl class="info-grid">
+            <dt>Produto</dt>
+            <dd>{{ amostra.produto_nome }}</dd>
+
+            <dt>Número do Lote</dt>
+            <dd>{{ amostra.numero_lote }}</dd>
+
+            <dt>Data da Coleta</dt>
+            <dd>{{ amostra.data_coleta }}</dd>
+
+            <dt>Responsável</dt>
+            <dd>{{ amostra.responsavel }}</dd>
+
+            <dt>Descrição</dt>
+            <dd>{{ amostra.produto_descricao or '-' }}</dd>
+
+            <dt>Resultado</dt>
+            <dd>
+                <span class="status-badge {{ amostra.status|lower }}">
+                    {{ amostra.status|upper }}
+                </span>
+            </dd>
+        </dl>
+
+        <!-- TABELA DE RESULTADOS -->
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Parâmetro</th>
+                    <th>Método</th>
+                    <th>Mín.</th>
+                    <th>Máx.</th>
+                    <th>Resultado</th>
+                    <th>Unid.</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in resultados %}
+                <tr>
+                    <td><strong>{{ r.nome_parametro }}</strong></td>
+                    <td>{{ r.metodo_ensaio or '-' }}</td>
+                    <td>{{ r.valor_minimo if r.valor_minimo is not none else '-' }}</td>
+                    <td>{{ r.valor_maximo if r.valor_maximo is not none else '-' }}</td>
+                    <td><strong>{{ r.valor_obtido if r.valor_obtido is not none else '-' }}</strong></td>
+                    <td>{{ r.unidade or '' }}</td>
+                    <td>
+                        {% if r.conforme is none %}
+                            —
+                        {% elif r.conforme %}
+                            <span class="conforme">✓ Conforme</span>
+                        {% else %}
+                            <span class="nconforme">✗ Não Conforme</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- ASSINATURAS -->
+        <div class="laudo-footer">
+            <div class="signature">
+                <div class="signature-line"></div>
+                <div class="signature-name">Responsável Técnico</div>
+                <div class="signature-role">CPTI — Capetro</div>
+            </div>
+            <div class="signature">
+                <div class="signature-line"></div>
+                <div class="signature-name">Gerente de Qualidade</div>
+                <div class="signature-role">CPTI — Capetro</div>
+            </div>
+        </div>
+
+        <div class="disclaimer">
+            Este laudo refere-se exclusivamente à amostra identificada acima.<br>
+            Capetro — Rod BR 316, Quadra F, S/N — Polo Industrial, Pilar — Alagoas, Brasil<br>
+            Tel: +55 82 3142-2083 · capetro.com.br
+        </div>
+    </div>
+
+</body>
+</html>

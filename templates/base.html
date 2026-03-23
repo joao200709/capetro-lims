@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CPTI{% endblock %} — Capetro LIMS</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- CSS customizado -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-icon">⬡</span>
+            <div>
+                <div class="brand-name">CAPETRO</div>
+                <div class="brand-sub">LIMS · CPTI</div>
+            </div>
+        </div>
+
+        <ul class="sidebar-nav">
+            <li class="nav-section">PRINCIPAL</li>
+            <li>
+                <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2-fill"></i>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+
+            <li class="nav-section">LABORATÓRIO</li>
+            <li>
+                <a href="{{ url_for('listar_amostras') }}" class="{% if 'amostra' in request.endpoint|default('') %}active{% endif %}">
+                    <i class="bi bi-droplet-fill"></i>
+                    <span>Amostras</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('nova_amostra') }}">
+                    <i class="bi bi-plus-circle"></i>
+                    <span>Nova Amostra</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-text">
+                <i class="bi bi-flask"></i> Protótipo v1.0
+            </div>
+        </div>
+    </nav>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="main-content">
+        <!-- Top bar -->
+        <header class="topbar">
+            <button class="btn btn-link d-md-none text-dark" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <i class="bi bi-list fs-4"></i>
+            </button>
+            <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+            <div class="topbar-right">
+                <span class="topbar-date">
+                    <i class="bi bi-calendar3"></i>
+                    {{ now().strftime('%d/%m/%Y') if now is defined else '' }}
+                </span>
+            </div>
+        </header>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show mx-4 mt-3" role="alert">
+                        <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }}"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Conteúdo da página -->
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

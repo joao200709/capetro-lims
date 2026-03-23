@@ -1,0 +1,497 @@
+/* ==============================================================
+   CAPETRO LIMS — Custom Styles
+   Tema: Industrial / Utilitário com toques da identidade Capetro
+   ============================================================== */
+
+:root {
+    --brand-dark: #0f1923;
+    --brand-primary: #1a73e8;
+    --brand-accent: #f5a623;
+    --sidebar-bg: #0f1923;
+    --sidebar-width: 250px;
+    --surface: #ffffff;
+    --surface-alt: #f4f6f9;
+    --text-primary: #1a1f36;
+    --text-secondary: #6b7280;
+    --border: #e5e7eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --radius: 10px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--surface-alt);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ==============================================================
+   SIDEBAR
+   ============================================================== */
+
+.sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: transform 0.3s ease;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.brand-icon {
+    font-size: 28px;
+    color: var(--brand-accent);
+}
+
+.brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.brand-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 1px;
+    margin-top: 1px;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: 12px 10px;
+    flex: 1;
+}
+
+.nav-section {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.3);
+    padding: 16px 12px 6px;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.sidebar-nav a:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.07);
+}
+
+.sidebar-nav a.active {
+    color: #fff;
+    background: var(--brand-primary);
+}
+
+.sidebar-nav a i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-footer-text {
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+}
+
+/* ==============================================================
+   MAIN CONTENT
+   ============================================================== */
+
+.main-content {
+    margin-left: var(--sidebar-width);
+    flex: 1;
+    min-height: 100vh;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.topbar-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.topbar-date {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-content {
+    padding: 24px 28px;
+}
+
+/* ==============================================================
+   CARDS E MÉTRICAS
+   ============================================================== */
+
+.metric-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    border: 1px solid var(--border);
+    transition: box-shadow 0.2s;
+}
+
+.metric-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+
+.metric-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 14px;
+}
+
+.metric-icon.blue  { background: #dbeafe; color: var(--brand-primary); }
+.metric-icon.green { background: #d1fae5; color: var(--success); }
+.metric-icon.red   { background: #fee2e2; color: var(--danger); }
+.metric-icon.amber { background: #fef3c7; color: var(--warning); }
+
+.metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+}
+
+.metric-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    letter-spacing: 0.3px;
+}
+
+/* ==============================================================
+   CARDS GENÉRICOS
+   ============================================================== */
+
+.card-panel {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.card-panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.card-panel-header h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.card-panel-body {
+    padding: 20px;
+}
+
+/* ==============================================================
+   TABELAS
+   ============================================================== */
+
+.table-clean {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-clean thead th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border);
+    text-align: left;
+}
+
+.table-clean tbody td {
+    padding: 12px 14px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.table-clean tbody tr:hover {
+    background: var(--surface-alt);
+}
+
+.table-clean tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ==============================================================
+   BADGES DE STATUS
+   ============================================================== */
+
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-status.aprovada  { background: #d1fae5; color: #065f46; }
+.badge-status.reprovada { background: #fee2e2; color: #991b1b; }
+.badge-status.pendente  { background: #fef3c7; color: #92400e; }
+
+.badge-conforme    { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-nconforme   { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-pendente-sm { background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+
+/* ==============================================================
+   FORMULÁRIOS
+   ============================================================== */
+
+.form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(26,115,232,0.12);
+}
+
+/* ==============================================================
+   BOTÕES
+   ============================================================== */
+
+.btn-brand {
+    background: var(--brand-primary);
+    color: #fff;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-brand:hover { background: #1557b0; color: #fff; }
+
+.btn-outline {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-outline:hover { background: var(--surface-alt); color: var(--text-primary); }
+
+/* ==============================================================
+   LAUDO (página de impressão)
+   ============================================================== */
+
+.laudo-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 40px;
+    font-size: 13px;
+}
+
+.laudo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid var(--brand-dark);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+}
+
+.laudo-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--brand-dark);
+}
+
+.laudo-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.laudo-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+    margin-bottom: 24px;
+    font-size: 13px;
+}
+
+.laudo-info-grid dt {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.laudo-info-grid dd {
+    margin: 0 0 8px;
+    font-weight: 500;
+}
+
+.laudo-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+}
+
+.laudo-table th {
+    background: var(--brand-dark);
+    color: #fff;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 10px;
+    text-align: left;
+}
+
+.laudo-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.laudo-table tr:nth-child(even) {
+    background: var(--surface-alt);
+}
+
+.laudo-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+}
+
+.laudo-signature {
+    text-align: center;
+    width: 200px;
+}
+
+.laudo-signature-line {
+    border-top: 1px solid var(--text-primary);
+    margin-bottom: 4px;
+    margin-top: 50px;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .sidebar { display: none !important; }
+    .main-content { margin-left: 0 !important; }
+    .topbar { display: none !important; }
+    .page-content { padding: 0 !important; }
+}
+
+/* ==============================================================
+   RESPONSIVO
+   ============================================================== */
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    .main-content {
+        margin-left: 0;
+    }
+    .page-content {
+        padding: 16px;
+    }
+    .topbar {
+        padding: 12px 16px;
+    }
+}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- MÉTRICAS -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-icon blue"><i class="bi bi-droplet-fill"></i></div>
+            <div class="metric-value">{{ total_amostras }}</div>
+            <div class="metric-label">Total de Amostras</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-icon green"><i class="bi bi-check-circle-fill"></i></div>
+            <div class="metric-value">{{ aprovadas }}</div>
+            <div class="metric-label">Aprovadas</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-icon red"><i class="bi bi-x-circle-fill"></i></div>
+            <div class="metric-value">{{ reprovadas }}</div>
+            <div class="metric-label">Reprovadas</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-icon amber"><i class="bi bi-hourglass-split"></i></div>
+            <div class="metric-value">{{ pendentes }}</div>
+            <div class="metric-label">Pendentes</div>
+        </div>
+    </div>
+</div>
+
+<!-- TAXA DE CONFORMIDADE -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card-panel">
+            <div class="card-panel-body d-flex align-items-center gap-3">
+                <div>
+                    <div class="metric-label">Taxa de Conformidade Geral</div>
+                    <div class="metric-value" style="font-size: 36px;">{{ taxa_conformidade }}%</div>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="progress" style="height: 12px; border-radius: 6px;">
+                        <div class="progress-bar bg-success" style="width: {{ taxa_conformidade }}%; border-radius: 6px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- GRÁFICOS + TABELA -->
+<div class="row g-3">
+    <!-- Gráfico: Amostras por produto -->
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-bar-chart-fill"></i> Amostras por Produto</h3>
+            </div>
+            <div class="card-panel-body">
+                <canvas id="chartProdutos" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico: Conformidade por produto -->
+    <div class="col-lg-6">
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-pie-chart-fill"></i> Conformidade por Produto</h3>
+            </div>
+            <div class="card-panel-body">
+                <canvas id="chartConformidade" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Últimas amostras -->
+    <div class="col-12">
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-clock-history"></i> Últimas Amostras</h3>
+                <a href="{{ url_for('listar_amostras') }}" class="btn-outline btn-sm">Ver todas</a>
+            </div>
+            <div class="card-panel-body p-0">
+                <table class="table-clean">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Produto</th>
+                            <th>Lote</th>
+                            <th>Data</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in ultimas_amostras %}
+                        <tr>
+                            <td><strong>#{{ a.id }}</strong></td>
+                            <td>{{ a.produto }}</td>
+                            <td><code>{{ a.numero_lote }}</code></td>
+                            <td>{{ a.data_coleta }}</td>
+                            <td>
+                                <span class="badge-status {{ a.status|lower }}">
+                                    {{ a.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cores consistentes
+const COLORS = {
+    blue: '#1a73e8',
+    green: '#10b981',
+    red: '#ef4444',
+    amber: '#f59e0b',
+    purple: '#8b5cf6',
+};
+
+// Gráfico: Amostras por Produto
+const ctxProd = document.getElementById('chartProdutos').getContext('2d');
+new Chart(ctxProd, {
+    type: 'bar',
+    data: {
+        labels: [{% for a in amostras_por_produto %}'{{ a.nome|truncate(20) }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Amostras',
+            data: [{% for a in amostras_por_produto %}{{ a.total }}{% if not loop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [COLORS.blue, COLORS.green, COLORS.amber, COLORS.purple],
+            borderRadius: 6,
+            borderSkipped: false,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+
+// Gráfico: Conformidade por Produto
+const ctxConf = document.getElementById('chartConformidade').getContext('2d');
+new Chart(ctxConf, {
+    type: 'bar',
+    data: {
+        labels: [{% for c in conformidade_por_produto %}'{{ c.nome|truncate(20) }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [
+            {
+                label: 'Aprovadas',
+                data: [{% for c in conformidade_por_produto %}{{ c.aprovadas or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: COLORS.green,
+                borderRadius: 6,
+                borderSkipped: false,
+            },
+            {
+                label: 'Reprovadas',
+                data: [{% for c in conformidade_por_produto %}{{ c.reprovadas or 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: COLORS.red,
+                borderRadius: 6,
+                borderSkipped: false,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+        scales: {
+            y: { beginAtZero: true, stacked: true, ticks: { stepSize: 1 } },
+            x: { stacked: true, grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Ensaios{% endblock %}
+{% block page_title %}Registrar Ensaios{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <!-- INFO DA AMOSTRA -->
+        <div class="card-panel mb-4">
+            <div class="card-panel-body d-flex align-items-center gap-3">
+                <div class="metric-icon blue"><i class="bi bi-droplet-fill"></i></div>
+                <div>
+                    <div style="font-weight: 700;">{{ amostra.produto_nome }}</div>
+                    <div class="metric-label">Lote {{ amostra.numero_lote }} · Coleta em {{ amostra.data_coleta }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORMULÁRIO DE ENSAIOS -->
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-pencil-square"></i> Preencher Resultados</h3>
+            </div>
+            <div class="card-panel-body">
+                <form method="POST">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Técnico Responsável</label>
+                            <input type="text" name="tecnico" class="form-control"
+                                   placeholder="Nome do técnico" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Data do Ensaio</label>
+                            <input type="date" name="data_ensaio" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <hr class="mb-4">
+
+                    <div class="table-responsive">
+                        <table class="table-clean">
+                            <thead>
+                                <tr>
+                                    <th>Parâmetro</th>
+                                    <th>Método</th>
+                                    <th>Faixa Aceitável</th>
+                                    <th>Unidade</th>
+                                    <th style="width: 160px;">Valor Obtido</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in resultados %}
+                                <tr>
+                                    <td><strong>{{ r.nome_parametro }}</strong></td>
+                                    <td><code>{{ r.metodo_ensaio or '-' }}</code></td>
+                                    <td>
+                                        {% if r.valor_minimo is not none and r.valor_maximo is not none %}
+                                            {{ r.valor_minimo }} – {{ r.valor_maximo }}
+                                        {% elif r.valor_minimo is not none %}
+                                            ≥ {{ r.valor_minimo }}
+                                        {% elif r.valor_maximo is not none %}
+                                            ≤ {{ r.valor_maximo }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ r.unidade or '' }}</td>
+                                    <td>
+                                        <input type="number" step="0.01"
+                                               name="valor_{{ r.id }}"
+                                               class="form-control"
+                                               placeholder="0.00"
+                                               required>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn-brand">
+                            <i class="bi bi-check-circle"></i> Salvar Resultados
+                        </button>
+                        <a href="{{ url_for('detalhe_amostra', amostra_id=amostra.id) }}" class="btn-outline">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
