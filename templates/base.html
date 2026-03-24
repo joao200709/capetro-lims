@@ -67,11 +67,23 @@
                 <i class="bi bi-list fs-4"></i>
             </button>
             <div class="topbar-title">{% block page_title %}{% endblock %}</div>
-            <div class="topbar-right">
+            <div class="topbar-right" style="display: flex; align-items: center; gap: 16px;">
                 <span class="topbar-date">
                     <i class="bi bi-calendar3"></i>
                     {{ now().strftime('%d/%m/%Y') if now is defined else '' }}
                 </span>
+                {% if session.get('usuario_nome') %}
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 13px; color: var(--text-secondary);">
+                        <i class="bi bi-person-circle"></i>
+                        {{ session.usuario_nome }}
+                    </span>
+                    <a href="{{ url_for('logout') }}" class="btn-outline" style="padding: 5px 12px; font-size: 12px;"
+                       onclick="return confirm('Tem certeza que deseja sair do sistema?');">
+                        <i class="bi bi-box-arrow-right"></i> Sair
+                    </a>
+                </div>
+                {% endif %}
             </div>
         </header>
 
