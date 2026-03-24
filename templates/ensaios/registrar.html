@@ -17,7 +17,7 @@
             </div>
         </div>
 
-        <!-- FORMULÁRIO DE ENSAIOS -->
+        <!-- FORMULARIO DE ENSAIOS -->
         <div class="card-panel">
             <div class="card-panel-header">
                 <h3><i class="bi bi-pencil-square"></i> Preencher Resultados</h3>
@@ -26,9 +26,9 @@
                 <form method="POST">
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label">Técnico Responsável</label>
+                            <label class="form-label">Tecnico Responsavel</label>
                             <input type="text" name="tecnico" class="form-control"
-                                   placeholder="Nome do técnico" required>
+                                   placeholder="Nome do tecnico" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Data do Ensaio</label>
@@ -42,11 +42,12 @@
                         <table class="table-clean">
                             <thead>
                                 <tr>
-                                    <th>Parâmetro</th>
-                                    <th>Método</th>
-                                    <th>Faixa Aceitável</th>
+                                    <th>Parametro</th>
+                                    <th>Metodo</th>
+                                    <th>Faixa Aceitavel</th>
                                     <th>Unidade</th>
                                     <th style="width: 160px;">Valor Obtido</th>
+                                    <th style="width: 90px;">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -69,9 +70,14 @@
                                     <td>
                                         <input type="number" step="0.01"
                                                name="valor_{{ r.id }}"
-                                               class="form-control"
+                                               class="form-control ensaio-input"
+                                               data-min="{{ r.valor_minimo if r.valor_minimo is not none else '' }}"
+                                               data-max="{{ r.valor_maximo if r.valor_maximo is not none else '' }}"
                                                placeholder="0.00"
                                                required>
+                                    </td>
+                                    <td>
+                                        <span class="ensaio-feedback"></span>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -90,4 +96,36 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.ensaio-input').forEach(function(input) {
+    var feedback = input.closest('tr').querySelector('.ensaio-feedback');
+
+    input.addEventListener('input', function() {
+        var val = parseFloat(input.value);
+        var min = input.dataset.min;
+        var max = input.dataset.max;
+
+        if (isNaN(val) || input.value === '') {
+            feedback.textContent = '';
+            input.style.borderColor = '';
+            return;
+        }
+
+        var conforme = true;
+        if (min !== '' && val < parseFloat(min)) conforme = false;
+        if (max !== '' && val > parseFloat(max)) conforme = false;
+
+        if (conforme) {
+            feedback.innerHTML = '<span class="badge-conforme">OK</span>';
+            input.style.borderColor = 'var(--success)';
+        } else {
+            feedback.innerHTML = '<span class="badge-nconforme">Fora</span>';
+            input.style.borderColor = 'var(--danger)';
+        }
+    });
+});
+</script>
 {% endblock %}

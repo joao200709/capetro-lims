@@ -2,12 +2,13 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import tempfile
 import os
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
+app.permanent_session_lifetime = timedelta(days=30)
 
 
 # --- Queries reutilizadas em varias rotas ---
@@ -77,6 +78,10 @@ def login():
         db.close()
 
         if usuario and check_password_hash(usuario['senha_hash'], senha):
+            if request.form.get('lembrar'):
+                session.permanent = True
+            else:
+                session.permanent = False
             session['usuario_id'] = usuario['id']
             session['usuario_nome'] = usuario['nome']
             session['usuario_cargo'] = usuario['cargo']
@@ -204,6 +209,9 @@ def listar_amostras():
 
     produto_id = request.args.get('produto_id', '')
     status = request.args.get('status', '')
+    busca_lote = request.args.get('lote', '').strip()
+    pagina = request.args.get('pagina', 1, type=int)
+    por_pagina = 15
 
     query = '''
         SELECT a.id, p.nome as produto, a.numero_lote, a.data_coleta,
@@ -220,8 +228,20 @@ def listar_amostras():
     if status:
         query += ' AND a.status = ?'
         params.append(status)
+    if busca_lote:
+        query += ' AND a.numero_lote LIKE ?'
+        params.append(f'%{busca_lote}%')
 
-    query += ' ORDER BY a.data_coleta DESC'
+    count_query = query.replace(
+        'SELECT a.id, p.nome as produto, a.numero_lote, a.data_coleta,\n               a.responsavel, a.status',
+        'SELECT COUNT(*)'
+    )
+    total = db.execute(count_query, params).fetchone()[0]
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+    pagina = max(1, min(pagina, total_paginas))
+
+    query += ' ORDER BY a.data_coleta DESC LIMIT ? OFFSET ?'
+    params.extend([por_pagina, (pagina - 1) * por_pagina])
 
     amostras = db.execute(query, params).fetchall()
     produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
@@ -231,7 +251,11 @@ def listar_amostras():
         amostras=amostras,
         produtos=produtos,
         filtro_produto=produto_id,
-        filtro_status=status
+        filtro_status=status,
+        busca_lote=busca_lote,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total=total
     )
 
 
@@ -298,6 +322,61 @@ def detalhe_amostra(amostra_id):
         amostra=amostra,
         resultados=resultados
     )
+
+
+@app.route('/amostras/<int:amostra_id>/editar', methods=['GET', 'POST'])
+@login_required
+def editar_amostra(amostra_id):
+    db = get_db()
+    amostra = buscar_amostra(db, amostra_id)
+
+    if not amostra:
+        db.close()
+        flash('Amostra nao encontrada.', 'error')
+        return redirect(url_for('listar_amostras'))
+
+    if request.method == 'POST':
+        numero_lote = request.form.get('numero_lote', '').strip()
+        data_coleta = request.form.get('data_coleta', '').strip()
+        responsavel = request.form.get('responsavel', '').strip()
+
+        if not all([numero_lote, data_coleta, responsavel]):
+            flash('Preencha todos os campos.', 'error')
+            db.close()
+            return render_template('amostras/editar.html', amostra=amostra)
+
+        db.execute('''
+            UPDATE amostras SET numero_lote = ?, data_coleta = ?, responsavel = ?
+            WHERE id = ?
+        ''', [numero_lote, data_coleta, responsavel, amostra_id])
+        db.commit()
+        db.close()
+
+        flash('Amostra atualizada.', 'success')
+        return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
+
+    db.close()
+    return render_template('amostras/editar.html', amostra=amostra)
+
+
+@app.route('/amostras/<int:amostra_id>/excluir', methods=['POST'])
+@login_required
+def excluir_amostra(amostra_id):
+    db = get_db()
+    amostra = buscar_amostra(db, amostra_id)
+
+    if not amostra:
+        db.close()
+        flash('Amostra nao encontrada.', 'error')
+        return redirect(url_for('listar_amostras'))
+
+    db.execute('DELETE FROM resultados WHERE amostra_id = ?', [amostra_id])
+    db.execute('DELETE FROM amostras WHERE id = ?', [amostra_id])
+    db.commit()
+    db.close()
+
+    flash('Amostra excluida.', 'success')
+    return redirect(url_for('listar_amostras'))
 
 
 # --- Ensaios ---
