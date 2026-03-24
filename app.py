@@ -3,10 +3,38 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data
 from functools import wraps
 from datetime import datetime
+import tempfile
 import os
 
 app = Flask(__name__)
-app.secret_key = 'capetro-lims-dev-key'
+app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
+
+
+# --- Queries reutilizadas em varias rotas ---
+
+def buscar_amostra(db, amostra_id, com_descricao=False):
+    """Busca uma amostra pelo id, ja trazendo o nome do produto junto."""
+    campos = 'a.*, p.nome as produto_nome'
+    if com_descricao:
+        campos += ', p.descricao as produto_descricao'
+
+    return db.execute(f'''
+        SELECT {campos}
+        FROM amostras a
+        JOIN produtos p ON a.produto_id = p.id
+        WHERE a.id = ?
+    ''', [amostra_id]).fetchone()
+
+
+def buscar_resultados(db, amostra_id):
+    """Busca os resultados de ensaio de uma amostra com os parametros."""
+    return db.execute('''
+        SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
+        FROM resultados r
+        JOIN parametros_ensaio pe ON r.parametro_id = pe.id
+        WHERE r.amostra_id = ?
+        ORDER BY pe.nome_parametro
+    ''', [amostra_id]).fetchall()
 
 
 @app.before_request
@@ -35,8 +63,12 @@ def login():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        email = request.form['email'].strip().lower()
-        senha = request.form['senha']
+        email = request.form.get('email', '').strip().lower()
+        senha = request.form.get('senha', '')
+
+        if not email or not senha:
+            flash('Preencha todos os campos.', 'error')
+            return render_template('auth/login.html')
 
         db = get_db()
         usuario = db.execute(
@@ -62,12 +94,16 @@ def registro():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        nome = request.form['nome'].strip()
-        email = request.form['email'].strip().lower()
-        senha = request.form['senha']
-        confirmar = request.form['confirmar_senha']
+        nome = request.form.get('nome', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        senha = request.form.get('senha', '')
+        confirmar = request.form.get('confirmar_senha', '')
         cargo = request.form.get('cargo', 'Tecnico')
         form_data = {'nome': nome, 'email': email, 'cargo': cargo}
+
+        if not nome or not email:
+            flash('Preencha todos os campos.', 'error')
+            return render_template('auth/registro.html', form=form_data)
 
         if senha != confirmar:
             flash('As senhas nao coincidem.', 'error')
@@ -205,10 +241,16 @@ def nova_amostra():
     db = get_db()
 
     if request.method == 'POST':
-        produto_id = request.form['produto_id']
-        numero_lote = request.form['numero_lote']
-        data_coleta = request.form['data_coleta']
-        responsavel = request.form['responsavel']
+        produto_id = request.form.get('produto_id', '').strip()
+        numero_lote = request.form.get('numero_lote', '').strip()
+        data_coleta = request.form.get('data_coleta', '').strip()
+        responsavel = request.form.get('responsavel', '').strip()
+
+        if not all([produto_id, numero_lote, data_coleta, responsavel]):
+            flash('Preencha todos os campos.', 'error')
+            produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
+            db.close()
+            return render_template('amostras/nova.html', produtos=produtos)
 
         cursor = db.execute('''
             INSERT INTO amostras (produto_id, numero_lote, data_coleta, responsavel, status)
@@ -217,7 +259,6 @@ def nova_amostra():
 
         amostra_id = cursor.lastrowid
 
-        # Ja cria um resultado vazio pra cada parametro do produto
         parametros = db.execute(
             'SELECT id FROM parametros_ensaio WHERE produto_id = ?', [produto_id]
         ).fetchall()
@@ -243,26 +284,14 @@ def nova_amostra():
 @login_required
 def detalhe_amostra(amostra_id):
     db = get_db()
-
-    amostra = db.execute('''
-        SELECT a.*, p.nome as produto_nome
-        FROM amostras a
-        JOIN produtos p ON a.produto_id = p.id
-        WHERE a.id = ?
-    ''', [amostra_id]).fetchone()
+    amostra = buscar_amostra(db, amostra_id)
 
     if not amostra:
+        db.close()
         flash('Amostra nao encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
-    resultados = db.execute('''
-        SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
-        FROM resultados r
-        JOIN parametros_ensaio pe ON r.parametro_id = pe.id
-        WHERE r.amostra_id = ?
-        ORDER BY pe.nome_parametro
-    ''', [amostra_id]).fetchall()
-
+    resultados = buscar_resultados(db, amostra_id)
     db.close()
 
     return render_template('amostras/detalhe.html',
@@ -277,21 +306,23 @@ def detalhe_amostra(amostra_id):
 @login_required
 def registrar_ensaios(amostra_id):
     db = get_db()
-
-    amostra = db.execute('''
-        SELECT a.*, p.nome as produto_nome
-        FROM amostras a
-        JOIN produtos p ON a.produto_id = p.id
-        WHERE a.id = ?
-    ''', [amostra_id]).fetchone()
+    amostra = buscar_amostra(db, amostra_id)
 
     if not amostra:
+        db.close()
         flash('Amostra nao encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     if request.method == 'POST':
-        tecnico = request.form['tecnico']
-        data_ensaio = request.form['data_ensaio']
+        tecnico = request.form.get('tecnico', '').strip()
+        data_ensaio = request.form.get('data_ensaio', '').strip()
+
+        if not tecnico or not data_ensaio:
+            flash('Preencha o tecnico e a data do ensaio.', 'error')
+            resultados = buscar_resultados(db, amostra_id)
+            db.close()
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
+
         todos_conformes = True
 
         resultados = db.execute('''
@@ -306,9 +337,14 @@ def registrar_ensaios(amostra_id):
             valor_str = request.form.get(campo, '').strip()
 
             if valor_str:
-                valor = float(valor_str)
+                try:
+                    valor = float(valor_str)
+                except ValueError:
+                    flash(f'Valor invalido encontrado. Use apenas numeros.', 'error')
+                    resultados = buscar_resultados(db, amostra_id)
+                    db.close()
+                    return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
 
-                # Compara o valor com os limites min/max do parametro
                 conforme = True
                 if resultado['valor_minimo'] is not None and valor < resultado['valor_minimo']:
                     conforme = False
@@ -333,14 +369,7 @@ def registrar_ensaios(amostra_id):
         flash(f'Ensaios registrados! Amostra {novo_status.lower()}.', 'success')
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
-    resultados = db.execute('''
-        SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
-        FROM resultados r
-        JOIN parametros_ensaio pe ON r.parametro_id = pe.id
-        WHERE r.amostra_id = ?
-        ORDER BY pe.nome_parametro
-    ''', [amostra_id]).fetchall()
-
+    resultados = buscar_resultados(db, amostra_id)
     db.close()
 
     return render_template('ensaios/registrar.html',
@@ -355,26 +384,14 @@ def registrar_ensaios(amostra_id):
 @login_required
 def gerar_laudo(amostra_id):
     db = get_db()
-
-    amostra = db.execute('''
-        SELECT a.*, p.nome as produto_nome, p.descricao as produto_descricao
-        FROM amostras a
-        JOIN produtos p ON a.produto_id = p.id
-        WHERE a.id = ?
-    ''', [amostra_id]).fetchone()
+    amostra = buscar_amostra(db, amostra_id, com_descricao=True)
 
     if not amostra:
+        db.close()
         flash('Amostra nao encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
-    resultados = db.execute('''
-        SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
-        FROM resultados r
-        JOIN parametros_ensaio pe ON r.parametro_id = pe.id
-        WHERE r.amostra_id = ?
-        ORDER BY pe.nome_parametro
-    ''', [amostra_id]).fetchall()
-
+    resultados = buscar_resultados(db, amostra_id)
     db.close()
 
     return render_template('laudos/laudo.html',
@@ -394,22 +411,8 @@ def gerar_laudo_pdf(amostra_id):
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
     db = get_db()
-
-    amostra = db.execute('''
-        SELECT a.*, p.nome as produto_nome, p.descricao as produto_descricao
-        FROM amostras a
-        JOIN produtos p ON a.produto_id = p.id
-        WHERE a.id = ?
-    ''', [amostra_id]).fetchone()
-
-    resultados = db.execute('''
-        SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
-        FROM resultados r
-        JOIN parametros_ensaio pe ON r.parametro_id = pe.id
-        WHERE r.amostra_id = ?
-        ORDER BY pe.nome_parametro
-    ''', [amostra_id]).fetchall()
-
+    amostra = buscar_amostra(db, amostra_id, com_descricao=True)
+    resultados = buscar_resultados(db, amostra_id)
     db.close()
 
     html_string = render_template('laudos/laudo.html',
@@ -421,12 +424,32 @@ def gerar_laudo_pdf(amostra_id):
 
     pdf = HTML(string=html_string, base_url=request.url_root).write_pdf()
 
-    pdf_path = f'/tmp/laudo_{amostra_id}.pdf'
-    with open(pdf_path, 'wb') as f:
-        f.write(pdf)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+    tmp.write(pdf)
+    tmp.close()
 
-    return send_file(pdf_path, as_attachment=True,
-                     download_name=f'Laudo_Capetro_{amostra["numero_lote"]}.pdf')
+    response = send_file(tmp.name, as_attachment=True,
+                         download_name=f'Laudo_Capetro_{amostra["numero_lote"]}.pdf')
+
+    @response.call_on_close
+    def cleanup():
+        os.unlink(tmp.name)
+
+    return response
+
+
+# --- Pagina de erro ---
+
+@app.errorhandler(404)
+def pagina_nao_encontrada(e):
+    flash('Pagina nao encontrada.', 'error')
+    return redirect(url_for('dashboard'))
+
+
+@app.errorhandler(500)
+def erro_interno(e):
+    flash('Ocorreu um erro interno. Tente novamente.', 'error')
+    return redirect(url_for('dashboard'))
 
 
 if __name__ == '__main__':
