@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Usuário{% endblock %}
+{% block page_title %}Editar Usuário{% endblock %}
+
+{% block content %}
+<div class="card-panel" style="max-width: 600px;">
+    <div class="card-panel-header">
+        <h3><i class="bi bi-pencil"></i> Editando: {{ usuario.nome }}</h3>
+    </div>
+    <div class="card-panel-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Nome completo</label>
+                <input type="text" name="nome" class="form-control" value="{{ usuario.nome }}" required autofocus>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">E-mail</label>
+                <input type="email" name="email" class="form-control" value="{{ usuario.email }}" required>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Cargo / Perfil de acesso</label>
+                <select name="perfil" class="form-select">
+                    {% for key, label in perfil_labels.items() %}
+                    <option value="{{ key }}" {% if usuario.perfil == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button type="submit" class="btn-brand" style="padding: 10px 24px;">
+                    <i class="bi bi-check-lg"></i> Salvar
+                </button>
+                <a href="{{ url_for('listar_usuarios') }}" class="btn-outline" style="padding: 10px 24px;">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

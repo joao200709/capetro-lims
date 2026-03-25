@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Novo Usuário{% endblock %}
+{% block page_title %}Criar Novo Usuário{% endblock %}
+
+{% block content %}
+<div class="card-panel" style="max-width: 600px;">
+    <div class="card-panel-header">
+        <h3><i class="bi bi-person-plus"></i> Dados do novo usuário</h3>
+    </div>
+    <div class="card-panel-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Nome completo</label>
+                <input type="text" name="nome" class="form-control" placeholder="Nome do funcionário"
+                       value="{{ form.nome if form else '' }}" required autofocus>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">E-mail</label>
+                <input type="email" name="email" class="form-control" placeholder="email@capetro.com"
+                       value="{{ form.email if form else '' }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Cargo / Perfil de acesso</label>
+                <select name="perfil" class="form-select">
+                    {% for key, label in perfil_labels.items() %}
+                    <option value="{{ key }}" {{ 'selected' if form and form.perfil == key else '' }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Senha</label>
+                <input type="password" name="senha" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Confirmar senha</label>
+                <input type="password" name="confirmar_senha" class="form-control" placeholder="Repita a senha" required minlength="6">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button type="submit" class="btn-brand" style="padding: 10px 24px;">
+                    <i class="bi bi-person-plus"></i> Criar Conta
+                </button>
+                <a href="{{ url_for('listar_usuarios') }}" class="btn-outline" style="padding: 10px 24px;">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

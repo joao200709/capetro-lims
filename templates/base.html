@@ -64,12 +64,20 @@
             {% if session.get('usuario_perfil') == 'admin' %}
             <li class="nav-section">ADMINISTRAÇÃO</li>
             <li>
-                <a href="{{ url_for('listar_usuarios') }}" class="{% if 'usuario' in request.endpoint|default('') %}active{% endif %}">
+                <a href="{{ url_for('listar_usuarios') }}" class="{% if 'usuario' in request.endpoint|default('') and request.endpoint != 'minha_conta' %}active{% endif %}">
                     <i class="bi bi-people-fill"></i>
                     <span>Usuários</span>
                 </a>
             </li>
             {% endif %}
+
+            <li class="nav-section">CONTA</li>
+            <li>
+                <a href="{{ url_for('minha_conta') }}" class="{% if request.endpoint == 'minha_conta' %}active{% endif %}">
+                    <i class="bi bi-person-gear"></i>
+                    <span>Minha Conta</span>
+                </a>
+            </li>
         </ul>
 
         <div class="sidebar-footer">

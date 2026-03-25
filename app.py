@@ -5,10 +5,18 @@ from functools import wraps
 from datetime import datetime, timedelta
 import tempfile
 import os
+import time
 
 app = Flask(__name__)
+# Chave hardcodada temporariamente, em producao, definir SECRET_KEY como variavel de ambiente
 app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
 app.permanent_session_lifetime = timedelta(days=30)
+
+# Rate limiting: rastreia tentativas de login por IP
+# Formato: {ip: {'tentativas': int, 'bloqueado_ate': timestamp}}
+tentativas_login = {}
+MAX_TENTATIVAS = 5
+BLOQUEIO_MINUTOS = 15
 
 # Perfis: tecnico < coordenador < gerente < admin
 PERFIS = {
@@ -102,6 +110,19 @@ def login():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
+        ip = request.remote_addr
+        agora = time.time()
+
+        # Verifica se o IP esta bloqueado
+        if ip in tentativas_login:
+            info = tentativas_login[ip]
+            if info.get('bloqueado_ate') and agora < info['bloqueado_ate']:
+                restante = int((info['bloqueado_ate'] - agora) / 60) + 1
+                flash(f'Muitas tentativas. Tente novamente em {restante} minuto(s).', 'error')
+                return render_template('auth/login.html')
+            if info.get('bloqueado_ate') and agora >= info['bloqueado_ate']:
+                tentativas_login.pop(ip)
+
         email = request.form.get('email', '').strip().lower()
         senha = request.form.get('senha', '')
 
@@ -116,6 +137,8 @@ def login():
         db.close()
 
         if usuario and check_password_hash(usuario['senha_hash'], senha):
+            # Login ok, limpa tentativas
+            tentativas_login.pop(ip, None)
             if request.form.get('lembrar'):
                 session.permanent = True
             else:
@@ -127,35 +150,51 @@ def login():
             flash(f'Bem-vindo, {usuario["nome"]}!', 'success')
             return redirect(url_for('dashboard'))
         else:
-            flash('E-mail ou senha incorretos.', 'error')
+            # Incrementa tentativas erradas
+            if ip not in tentativas_login:
+                tentativas_login[ip] = {'tentativas': 0}
+            tentativas_login[ip]['tentativas'] += 1
+
+            restantes = MAX_TENTATIVAS - tentativas_login[ip]['tentativas']
+            if restantes <= 0:
+                tentativas_login[ip]['bloqueado_ate'] = agora + (BLOQUEIO_MINUTOS * 60)
+                flash(f'Conta bloqueada por {BLOQUEIO_MINUTOS} minutos após muitas tentativas.', 'error')
+            elif restantes <= 2:
+                flash(f'E-mail ou senha incorretos. {restantes} tentativa(s) restante(s).', 'error')
+            else:
+                flash('E-mail ou senha incorretos.', 'error')
 
     return render_template('auth/login.html')
 
 
-@app.route('/registro', methods=['GET', 'POST'])
-def registro():
-    if 'usuario_id' in session:
-        return redirect(url_for('dashboard'))
-
+@app.route('/usuarios/novo', methods=['GET', 'POST'])
+@login_required
+@perfil_minimo('admin')
+def criar_usuario():
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
         email = request.form.get('email', '').strip().lower()
         senha = request.form.get('senha', '')
         confirmar = request.form.get('confirmar_senha', '')
-        cargo = request.form.get('cargo', 'Tecnico')
-        form_data = {'nome': nome, 'email': email, 'cargo': cargo}
+        perfil = request.form.get('perfil', 'tecnico')
+        form_data = {'nome': nome, 'email': email, 'perfil': perfil}
 
-        if not nome or not email:
+        if not nome or not email or not senha:
             flash('Preencha todos os campos.', 'error')
-            return render_template('auth/registro.html', form=form_data)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
 
         if senha != confirmar:
             flash('As senhas não coincidem.', 'error')
-            return render_template('auth/registro.html', form=form_data)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
 
         if len(senha) < 6:
             flash('A senha deve ter pelo menos 6 caracteres.', 'error')
-            return render_template('auth/registro.html', form=form_data)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
+
+        if perfil not in PERFIS:
+            perfil = 'tecnico'
+
+        cargo = PERFIL_LABELS.get(perfil, 'Técnico')
 
         db = get_db()
         existente = db.execute('SELECT id FROM usuarios WHERE email = ?', [email]).fetchone()
@@ -163,25 +202,20 @@ def registro():
         if existente:
             db.close()
             flash('Este e-mail já está cadastrado.', 'error')
-            return render_template('auth/registro.html', form=form_data)
-
-        perfil = 'tecnico'
-        if cargo == 'Coordenador':
-            perfil = 'coordenador'
-        elif cargo == 'Gerente':
-            perfil = 'gerente'
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
 
         db.execute(
             'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil) VALUES (?, ?, ?, ?, ?)',
             [nome, email, generate_password_hash(senha), cargo, perfil]
         )
+        registrar_historico(db, 'Criou conta', 'Usuário', None, f'{nome} ({email})')
         db.commit()
         db.close()
 
-        flash('Conta criada com sucesso! Faça login.', 'success')
-        return redirect(url_for('login'))
+        flash(f'Conta de {nome} criada com sucesso!', 'success')
+        return redirect(url_for('listar_usuarios'))
 
-    return render_template('auth/registro.html')
+    return render_template('usuarios/novo.html', perfil_labels=PERFIL_LABELS)
 
 
 @app.route('/logout')
@@ -643,15 +677,10 @@ def listar_usuarios():
     return render_template('usuarios/lista.html', usuarios=usuarios, perfil_labels=PERFIL_LABELS)
 
 
-@app.route('/usuarios/<int:usuario_id>/perfil', methods=['POST'])
+@app.route('/usuarios/<int:usuario_id>/editar', methods=['GET', 'POST'])
 @login_required
 @perfil_minimo('admin')
-def alterar_perfil(usuario_id):
-    novo_perfil = request.form.get('perfil', 'tecnico')
-    if novo_perfil not in PERFIS:
-        flash('Perfil inválido.', 'error')
-        return redirect(url_for('listar_usuarios'))
-
+def editar_usuario(usuario_id):
     db = get_db()
     usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
     if not usuario:
@@ -659,14 +688,55 @@ def alterar_perfil(usuario_id):
         flash('Usuário não encontrado.', 'error')
         return redirect(url_for('listar_usuarios'))
 
-    db.execute('UPDATE usuarios SET perfil = ? WHERE id = ?', [novo_perfil, usuario_id])
-    registrar_historico(db, 'Alterou perfil', 'Usuário', usuario_id,
-                        f'{usuario["nome"]}: {PERFIL_LABELS.get(novo_perfil, novo_perfil)}')
-    db.commit()
-    db.close()
+    if request.method == 'POST':
+        nome = request.form.get('nome', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        perfil = request.form.get('perfil', 'tecnico')
 
-    flash(f'Perfil de {usuario["nome"]} atualizado para {PERFIL_LABELS.get(novo_perfil)}.', 'success')
-    return redirect(url_for('listar_usuarios'))
+        if not nome or not email:
+            flash('Preencha nome e e-mail.', 'error')
+            db.close()
+            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+
+        if perfil not in PERFIS:
+            perfil = 'tecnico'
+
+        cargo = PERFIL_LABELS.get(perfil, 'Técnico')
+
+        # Verifica se o email ja pertence a outro usuario
+        existente = db.execute('SELECT id FROM usuarios WHERE email = ? AND id != ?', [email, usuario_id]).fetchone()
+        if existente:
+            db.close()
+            flash('Este e-mail já está sendo usado por outro usuário.', 'error')
+            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+
+        db.execute('UPDATE usuarios SET nome = ?, email = ?, cargo = ?, perfil = ? WHERE id = ?',
+                   [nome, email, cargo, perfil, usuario_id])
+
+        mudancas = []
+        if nome != usuario['nome']:
+            mudancas.append(f'nome: {usuario["nome"]} → {nome}')
+        if email != usuario['email']:
+            mudancas.append(f'email: {usuario["email"]} → {email}')
+        if perfil != usuario['perfil']:
+            mudancas.append(f'perfil: {PERFIL_LABELS.get(perfil)}')
+
+        registrar_historico(db, 'Editou conta', 'Usuário', usuario_id,
+                            ', '.join(mudancas) if mudancas else 'Sem alterações')
+        db.commit()
+        db.close()
+
+        # Atualiza a sessao se o admin editou a propria conta
+        if usuario_id == session.get('usuario_id'):
+            session['usuario_nome'] = nome
+            session['usuario_cargo'] = cargo
+            session['usuario_perfil'] = perfil
+
+        flash(f'Dados de {nome} atualizados.', 'success')
+        return redirect(url_for('listar_usuarios'))
+
+    db.close()
+    return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
 
 
 @app.route('/usuarios/<int:usuario_id>/ativar', methods=['POST'])
@@ -689,6 +759,72 @@ def toggle_usuario(usuario_id):
 
     flash(f'Usuário {usuario["nome"]} {"ativado" if novo_estado else "desativado"}.', 'success')
     return redirect(url_for('listar_usuarios'))
+
+
+@app.route('/usuarios/<int:usuario_id>/excluir', methods=['POST'])
+@login_required
+@perfil_minimo('admin')
+def excluir_usuario(usuario_id):
+    if usuario_id == session.get('usuario_id'):
+        flash('Você não pode excluir sua própria conta.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    db = get_db()
+    usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
+    if not usuario:
+        db.close()
+        flash('Usuário não encontrado.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    nome = usuario['nome']
+    db.execute('DELETE FROM usuarios WHERE id = ?', [usuario_id])
+    registrar_historico(db, 'Excluiu conta', 'Usuário', usuario_id, nome)
+    db.commit()
+    db.close()
+
+    flash(f'Conta de {nome} excluída permanentemente.', 'success')
+    return redirect(url_for('listar_usuarios'))
+
+
+# --- Minha conta ---
+
+@app.route('/minha-conta', methods=['GET', 'POST'])
+@login_required
+def minha_conta():
+    db = get_db()
+    usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [session['usuario_id']]).fetchone()
+
+    if request.method == 'POST':
+        senha_atual = request.form.get('senha_atual', '')
+        nova_senha = request.form.get('nova_senha', '')
+        confirmar = request.form.get('confirmar_senha', '')
+
+        if not check_password_hash(usuario['senha_hash'], senha_atual):
+            db.close()
+            flash('Senha atual incorreta.', 'error')
+            return render_template('minha_conta.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+
+        if nova_senha != confirmar:
+            db.close()
+            flash('As novas senhas não coincidem.', 'error')
+            return render_template('minha_conta.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+
+        if len(nova_senha) < 6:
+            db.close()
+            flash('A nova senha deve ter pelo menos 6 caracteres.', 'error')
+            return render_template('minha_conta.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+
+        db.execute('UPDATE usuarios SET senha_hash = ? WHERE id = ?',
+                   [generate_password_hash(nova_senha), session['usuario_id']])
+        registrar_historico(db, 'Alterou senha', 'Usuário', session['usuario_id'], usuario['nome'])
+        db.commit()
+        db.close()
+
+        flash('Senha alterada com sucesso!', 'success')
+        return redirect(url_for('minha_conta'))
+
+    db.close()
+    return render_template('minha_conta.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
 
 
 # --- Pagina de erro ---

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Minha Conta{% endblock %}
+{% block page_title %}Minha Conta{% endblock %}
+
+{% block content %}
+<div class="row g-4" style="max-width: 800px;">
+    <!-- Informacoes da conta -->
+    <div class="col-12">
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-person-circle"></i> Informações da conta</h3>
+            </div>
+            <div class="card-panel-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" style="color: var(--text-secondary);">Nome</label>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.nome }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" style="color: var(--text-secondary);">E-mail</label>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.email }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" style="color: var(--text-secondary);">Cargo</label>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.cargo }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" style="color: var(--text-secondary);">Perfil de acesso</label>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ perfil_labels.get(usuario.perfil, usuario.perfil) }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" style="color: var(--text-secondary);">Conta criada em</label>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.criado_em or '-' }}</div>
+                    </div>
+                </div>
+                {% if session.get('usuario_perfil') != 'admin' %}
+                <div style="margin-top: 16px; padding: 12px 16px; background: #fef3c7; border-radius: 8px; font-size: 13px; color: #92400e;">
+                    <i class="bi bi-info-circle"></i>
+                    Para alterar nome, e-mail, cargo ou perfil, entre em contato com o administrador do sistema.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Alterar senha -->
+    <div class="col-12">
+        <div class="card-panel">
+            <div class="card-panel-header">
+                <h3><i class="bi bi-key"></i> Alterar senha</h3>
+            </div>
+            <div class="card-panel-body">
+                <form method="POST" style="max-width: 400px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Senha atual</label>
+                        <input type="password" name="senha_atual" class="form-control" placeholder="Digite sua senha atual" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nova senha</label>
+                        <input type="password" name="nova_senha" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Confirmar nova senha</label>
+                        <input type="password" name="confirmar_senha" class="form-control" placeholder="Repita a nova senha" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn-brand">
+                        <i class="bi bi-check-lg"></i> Alterar Senha
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

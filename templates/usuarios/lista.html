@@ -5,8 +5,11 @@
 
 {% block content %}
 <div class="card-panel">
-    <div class="card-panel-header">
+    <div class="card-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
         <h3><i class="bi bi-people-fill"></i> Usuários cadastrados</h3>
+        <a href="{{ url_for('criar_usuario') }}" class="btn-brand" style="padding: 8px 16px; font-size: 13px;">
+            <i class="bi bi-person-plus"></i> Novo Usuário
+        </a>
     </div>
     <div class="card-panel-body p-0">
         <table class="table-clean">
@@ -14,8 +17,7 @@
                 <tr>
                     <th>Nome</th>
                     <th>E-mail</th>
-                    <th>Cargo</th>
-                    <th>Perfil</th>
+                    <th>Cargo / Perfil</th>
                     <th>Status</th>
                     <th>Criado em</th>
                     <th>Ações</th>
@@ -26,19 +28,7 @@
                 <tr>
                     <td><strong>{{ u.nome }}</strong></td>
                     <td>{{ u.email }}</td>
-                    <td>{{ u.cargo }}</td>
-                    <td>
-                        <form method="POST" action="{{ url_for('alterar_perfil', usuario_id=u.id) }}" class="d-flex gap-1">
-                            <select name="perfil" class="form-select" style="padding: 4px 8px; font-size: 12px; width: auto;">
-                                {% for key, label in perfil_labels.items() %}
-                                <option value="{{ key }}" {% if u.perfil == key %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px;">
-                                <i class="bi bi-check-lg"></i>
-                            </button>
-                        </form>
-                    </td>
+                    <td>{{ perfil_labels.get(u.perfil, u.perfil) }}</td>
                     <td>
                         {% if u.ativo %}
                             <span class="badge-conforme">Ativo</span>
@@ -49,18 +39,29 @@
                     <td style="font-size: 13px;">{{ u.criado_em or '-' }}</td>
                     <td>
                         {% if u.id != session.get('usuario_id') %}
-                        <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}" style="display:inline;">
-                            {% if u.ativo %}
-                            <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--danger);"
-                                    onclick="return confirm('Desativar {{ u.nome }}?');">
-                                <i class="bi bi-person-x"></i> Desativar
-                            </button>
-                            {% else %}
-                            <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--success);">
-                                <i class="bi bi-person-check"></i> Ativar
-                            </button>
-                            {% endif %}
-                        </form>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <a href="{{ url_for('editar_usuario', usuario_id=u.id) }}" class="btn-outline" style="padding: 4px 10px; font-size: 12px;">
+                                <i class="bi bi-pencil"></i> Editar
+                            </a>
+                            <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}" style="display:inline;">
+                                {% if u.ativo %}
+                                <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--warning);"
+                                        onclick="return confirm('Desativar {{ u.nome }}?');">
+                                    <i class="bi bi-person-x"></i> Desativar
+                                </button>
+                                {% else %}
+                                <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--success);">
+                                    <i class="bi bi-person-check"></i> Ativar
+                                </button>
+                                {% endif %}
+                            </form>
+                            <form method="POST" action="{{ url_for('excluir_usuario', usuario_id=u.id) }}" style="display:inline;">
+                                <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--danger);"
+                                        onclick="return confirm('EXCLUIR permanentemente a conta de {{ u.nome }}? Essa ação não pode ser desfeita.');">
+                                    <i class="bi bi-trash"></i> Excluir
+                                </button>
+                            </form>
+                        </div>
                         {% else %}
                         <span style="font-size: 12px; color: var(--text-secondary);">Você</span>
                         {% endif %}
