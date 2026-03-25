@@ -21,7 +21,7 @@ Acesse `http://localhost:5000` no navegador.
 
 **Login padrão:** `admin@capetro.com` / `admin123`
 
-> O WeasyPrint (geração de PDF) pode pedir dependências extras no Linux/Mac. Se der problema, ignore — o laudo HTML funciona normalmente sem ele.
+> O WeasyPrint (geração de PDF) pode pedir dependências extras no Linux/Mac. Se der problema, ignore, o laudo HTML funciona normalmente sem ele.
 
 ## Estrutura
 
