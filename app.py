@@ -52,7 +52,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'usuario_id' not in session:
-            flash('Faca login para acessar o sistema.', 'error')
+            flash('Faça login para acessar o sistema.', 'error')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -111,7 +111,7 @@ def registro():
             return render_template('auth/registro.html', form=form_data)
 
         if senha != confirmar:
-            flash('As senhas nao coincidem.', 'error')
+            flash('As senhas não coincidem.', 'error')
             return render_template('auth/registro.html', form=form_data)
 
         if len(senha) < 6:
@@ -123,7 +123,7 @@ def registro():
 
         if existente:
             db.close()
-            flash('Este e-mail ja esta cadastrado.', 'error')
+            flash('Este e-mail já está cadastrado.', 'error')
             return render_template('auth/registro.html', form=form_data)
 
         db.execute(
@@ -133,7 +133,7 @@ def registro():
         db.commit()
         db.close()
 
-        flash('Conta criada com sucesso! Faca login.', 'success')
+        flash('Conta criada com sucesso! Faça login.', 'success')
         return redirect(url_for('login'))
 
     return render_template('auth/registro.html')
@@ -142,7 +142,7 @@ def registro():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Voce saiu do sistema.', 'success')
+    flash('Você saiu do sistema.', 'success')
     return redirect(url_for('login'))
 
 
@@ -312,7 +312,7 @@ def detalhe_amostra(amostra_id):
 
     if not amostra:
         db.close()
-        flash('Amostra nao encontrada.', 'error')
+        flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     resultados = buscar_resultados(db, amostra_id)
@@ -332,7 +332,7 @@ def editar_amostra(amostra_id):
 
     if not amostra:
         db.close()
-        flash('Amostra nao encontrada.', 'error')
+        flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     if request.method == 'POST':
@@ -367,7 +367,7 @@ def excluir_amostra(amostra_id):
 
     if not amostra:
         db.close()
-        flash('Amostra nao encontrada.', 'error')
+        flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     db.execute('DELETE FROM resultados WHERE amostra_id = ?', [amostra_id])
@@ -375,7 +375,7 @@ def excluir_amostra(amostra_id):
     db.commit()
     db.close()
 
-    flash('Amostra excluida.', 'success')
+    flash('Amostra excluída.', 'success')
     return redirect(url_for('listar_amostras'))
 
 
@@ -389,7 +389,7 @@ def registrar_ensaios(amostra_id):
 
     if not amostra:
         db.close()
-        flash('Amostra nao encontrada.', 'error')
+        flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     if request.method == 'POST':
@@ -397,7 +397,7 @@ def registrar_ensaios(amostra_id):
         data_ensaio = request.form.get('data_ensaio', '').strip()
 
         if not tecnico or not data_ensaio:
-            flash('Preencha o tecnico e a data do ensaio.', 'error')
+            flash('Preencha o técnico e a data do ensaio.', 'error')
             resultados = buscar_resultados(db, amostra_id)
             db.close()
             return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
@@ -419,7 +419,7 @@ def registrar_ensaios(amostra_id):
                 try:
                     valor = float(valor_str)
                 except ValueError:
-                    flash(f'Valor invalido encontrado. Use apenas numeros.', 'error')
+                    flash('Valor inválido encontrado. Use apenas números.', 'error')
                     resultados = buscar_resultados(db, amostra_id)
                     db.close()
                     return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
@@ -467,7 +467,7 @@ def gerar_laudo(amostra_id):
 
     if not amostra:
         db.close()
-        flash('Amostra nao encontrada.', 'error')
+        flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
     resultados = buscar_resultados(db, amostra_id)
@@ -486,7 +486,7 @@ def gerar_laudo_pdf(amostra_id):
     try:
         from weasyprint import HTML
     except ImportError:
-        flash('WeasyPrint nao instalado. Use: pip install weasyprint', 'error')
+        flash('WeasyPrint não instalado. Use: pip install weasyprint', 'error')
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
     db = get_db()
@@ -521,13 +521,13 @@ def gerar_laudo_pdf(amostra_id):
 
 @app.errorhandler(404)
 def pagina_nao_encontrada(e):
-    flash('Pagina nao encontrada.', 'error')
+    flash('Página não encontrada.', 'error')
     return redirect(url_for('dashboard'))
 
 
 @app.errorhandler(500)
 def erro_interno(e):
-    flash('Ocorreu um erro interno. Tente novamente.', 'error')
+    flash('Ocorreu um erro interno. Tente novamente mais tarde.', 'error')
     return redirect(url_for('dashboard'))
 
 

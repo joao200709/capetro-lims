@@ -47,7 +47,7 @@
 
 <!-- TABELA DE AMOSTRAS -->
 <div class="card-panel">
-    <div class="card-panel-body p-0">
+    <div class="card-panel-body p-0" style="overflow-x: auto;">
         <table class="table-clean">
             <thead>
                 <tr>
@@ -55,9 +55,9 @@
                     <th>Produto</th>
                     <th>Lote</th>
                     <th>Data Coleta</th>
-                    <th>Responsavel</th>
+                    <th>Responsável</th>
                     <th>Status</th>
-                    <th>Acoes</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -127,7 +127,7 @@
             {% if pagina < total_paginas %}
             <a href="{{ url_for('listar_amostras', produto_id=filtro_produto, status=filtro_status, lote=busca_lote, pagina=pagina+1) }}"
                class="btn-outline" style="padding: 4px 12px; font-size: 13px;">
-                Proxima <i class="bi bi-chevron-right"></i>
+                Próxima <i class="bi bi-chevron-right"></i>
             </a>
             {% endif %}
         </div>

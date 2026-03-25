@@ -489,9 +489,54 @@ body {
         margin-left: 0;
     }
     .page-content {
-        padding: 16px;
+        padding: 12px;
     }
     .topbar {
-        padding: 12px 16px;
+        padding: 10px 12px;
+    }
+    .topbar-title {
+        font-size: 16px;
+    }
+    .topbar-date {
+        display: none;
+    }
+
+    /* Tabelas responsivas */
+    .table-clean {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table-clean thead th,
+    .table-clean tbody td {
+        white-space: nowrap;
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    /* Filtros empilhados */
+    .card-panel-body .row.g-2 > div {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* Métricas em grid 2x2 */
+    .metric-card {
+        padding: 14px 16px;
+    }
+    .metric-value {
+        font-size: 22px;
+    }
+
+    /* Botões de ação menores */
+    .d-flex.gap-2.flex-wrap {
+        gap: 6px !important;
+    }
+
+    /* Paginação */
+    .card-panel-body[style*="border-top"] {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
     }
 }

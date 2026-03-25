@@ -150,7 +150,7 @@
                 <div class="mb-3">
                     <label class="form-label">Cargo</label>
                     <select name="cargo" class="form-select">
-                        <option value="Tecnico" {{ 'selected' if form and form.cargo == 'Tecnico' else '' }}>Tecnico</option>
+                        <option value="Tecnico" {{ 'selected' if form and form.cargo == 'Tecnico' else '' }}>Técnico</option>
                         <option value="Analista" {{ 'selected' if form and form.cargo == 'Analista' else '' }}>Analista</option>
                         <option value="Coordenador" {{ 'selected' if form and form.cargo == 'Coordenador' else '' }}>Coordenador</option>
                         <option value="Gerente" {{ 'selected' if form and form.cargo == 'Gerente' else '' }}>Gerente</option>
@@ -163,7 +163,7 @@
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
                         <input type="password" name="senha" class="form-control" placeholder="Crie uma senha" required minlength="6">
                     </div>
-                    <div class="senha-hint">Minimo de 6 caracteres</div>
+                    <div class="senha-hint">Mínimo de 6 caracteres</div>
                 </div>
 
                 <div class="mb-4">
@@ -180,7 +180,7 @@
             </form>
 
             <div class="login-footer">
-                Ja tem conta? <a href="{{ url_for('login') }}">Fazer login</a>
+                Já tem conta? <a href="{{ url_for('login') }}">Fazer login</a>
             </div>
         </div>
     </div>

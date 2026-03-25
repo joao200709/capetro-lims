@@ -83,11 +83,11 @@ class TestAutenticacao(BaseTest):
 
     def test_registro_email_duplicado(self):
         r = self.fazer_registro(email='admin@capetro.com')
-        self.assertIn(b'ja esta cadastrado', r.data)
+        self.assertIn('já está cadastrado'.encode('utf-8'), r.data)
 
     def test_registro_senhas_diferentes(self):
         r = self.fazer_registro(senha='abc123', confirmar='xyz789')
-        self.assertIn(b'nao coincidem', r.data)
+        self.assertIn('não coincidem'.encode('utf-8'), r.data)
 
     def test_registro_senha_curta(self):
         r = self.fazer_registro(senha='123', confirmar='123')
@@ -154,7 +154,7 @@ class TestAmostras(BaseTest):
     def test_detalhe_amostra_inexistente(self):
         self.fazer_login()
         r = self.client.get('/amostras/9999', follow_redirects=True)
-        self.assertIn(b'nao encontrada', r.data)
+        self.assertIn('não encontrada'.encode('utf-8'), r.data)
 
     def test_filtrar_por_status(self):
         self.fazer_login()
@@ -180,7 +180,7 @@ class TestEnsaios(BaseTest):
     def test_registrar_ensaio_amostra_inexistente(self):
         self.fazer_login()
         r = self.client.get('/ensaios/registrar/9999', follow_redirects=True)
-        self.assertIn(b'nao encontrada', r.data)
+        self.assertIn('não encontrada'.encode('utf-8'), r.data)
 
 
 class TestLaudos(BaseTest):
@@ -193,7 +193,7 @@ class TestLaudos(BaseTest):
     def test_laudo_amostra_inexistente(self):
         self.fazer_login()
         r = self.client.get('/laudos/9999', follow_redirects=True)
-        self.assertIn(b'nao encontrada', r.data)
+        self.assertIn('não encontrada'.encode('utf-8'), r.data)
 
 
 class TestErros(BaseTest):
@@ -201,7 +201,7 @@ class TestErros(BaseTest):
     def test_pagina_404(self):
         self.fazer_login()
         r = self.client.get('/rota/que/nao/existe', follow_redirects=True)
-        self.assertIn(b'nao encontrada', r.data)
+        self.assertIn('não encontrada'.encode('utf-8'), r.data)
 
 
 if __name__ == '__main__':
