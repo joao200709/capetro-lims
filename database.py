@@ -64,8 +64,21 @@ def init_db():
             email TEXT NOT NULL UNIQUE,
             senha_hash TEXT NOT NULL,
             cargo TEXT DEFAULT 'Tecnico',
+            perfil TEXT DEFAULT 'tecnico',
             ativo INTEGER DEFAULT 1,
             criado_em TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS historico (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            usuario_nome TEXT NOT NULL,
+            acao TEXT NOT NULL,
+            entidade TEXT NOT NULL,
+            entidade_id INTEGER,
+            detalhes TEXT,
+            data_hora TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         );
     ''')
 
@@ -192,8 +205,8 @@ def seed_data():
 
     # Usuario admin padrao
     db.execute(
-        'INSERT INTO usuarios (nome, email, senha_hash, cargo) VALUES (?, ?, ?, ?)',
-        ['Administrador', 'admin@capetro.com', generate_password_hash('admin123'), 'Administrador']
+        'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil) VALUES (?, ?, ?, ?, ?)',
+        ['Administrador', 'admin@capetro.com', generate_password_hash('admin123'), 'Administrador', 'admin']
     )
 
     db.commit()

@@ -10,11 +10,25 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
 app.permanent_session_lifetime = timedelta(days=30)
 
+# Perfis: tecnico < coordenador < gerente < admin
+PERFIS = {
+    'tecnico': 1,
+    'coordenador': 2,
+    'gerente': 3,
+    'admin': 4
+}
+
+PERFIL_LABELS = {
+    'tecnico': 'Técnico',
+    'coordenador': 'Coordenador',
+    'gerente': 'Gerente',
+    'admin': 'Administrador'
+}
+
 
 # --- Queries reutilizadas em varias rotas ---
 
 def buscar_amostra(db, amostra_id, com_descricao=False):
-    """Busca uma amostra pelo id, ja trazendo o nome do produto junto."""
     campos = 'a.*, p.nome as produto_nome'
     if com_descricao:
         campos += ', p.descricao as produto_descricao'
@@ -28,7 +42,6 @@ def buscar_amostra(db, amostra_id, com_descricao=False):
 
 
 def buscar_resultados(db, amostra_id):
-    """Busca os resultados de ensaio de uma amostra com os parametros."""
     return db.execute('''
         SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
         FROM resultados r
@@ -36,6 +49,32 @@ def buscar_resultados(db, amostra_id):
         WHERE r.amostra_id = ?
         ORDER BY pe.nome_parametro
     ''', [amostra_id]).fetchall()
+
+
+def registrar_historico(db, acao, entidade, entidade_id=None, detalhes=None):
+    """Salva uma entrada no historico de alteracoes."""
+    db.execute('''
+        INSERT INTO historico (usuario_id, usuario_nome, acao, entidade, entidade_id, detalhes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', [
+        session.get('usuario_id'),
+        session.get('usuario_nome', 'Sistema'),
+        acao, entidade, entidade_id, detalhes
+    ])
+
+
+def perfil_minimo(perfil_necessario):
+    """Decorator que bloqueia acesso se o perfil do usuario for insuficiente."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            perfil_usuario = session.get('usuario_perfil', 'tecnico')
+            if PERFIS.get(perfil_usuario, 0) < PERFIS.get(perfil_necessario, 0):
+                flash('Você não tem permissão para acessar esta página.', 'error')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 @app.before_request
@@ -48,7 +87,6 @@ def before_request():
 # --- Autenticacao ---
 
 def login_required(f):
-    """Redireciona pro login se o usuario nao estiver logado."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'usuario_id' not in session:
@@ -85,6 +123,7 @@ def login():
             session['usuario_id'] = usuario['id']
             session['usuario_nome'] = usuario['nome']
             session['usuario_cargo'] = usuario['cargo']
+            session['usuario_perfil'] = usuario['perfil'] if 'perfil' in usuario.keys() else 'tecnico'
             flash(f'Bem-vindo, {usuario["nome"]}!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -126,9 +165,15 @@ def registro():
             flash('Este e-mail já está cadastrado.', 'error')
             return render_template('auth/registro.html', form=form_data)
 
+        perfil = 'tecnico'
+        if cargo == 'Coordenador':
+            perfil = 'coordenador'
+        elif cargo == 'Gerente':
+            perfil = 'gerente'
+
         db.execute(
-            'INSERT INTO usuarios (nome, email, senha_hash, cargo) VALUES (?, ?, ?, ?)',
-            [nome, email, generate_password_hash(senha), cargo]
+            'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil) VALUES (?, ?, ?, ?, ?)',
+            [nome, email, generate_password_hash(senha), cargo, perfil]
         )
         db.commit()
         db.close()
@@ -153,38 +198,69 @@ def logout():
 def dashboard():
     db = get_db()
 
-    total_amostras = db.execute('SELECT COUNT(*) FROM amostras').fetchone()[0]
-    aprovadas = db.execute("SELECT COUNT(*) FROM amostras WHERE status = 'Aprovada'").fetchone()[0]
-    reprovadas = db.execute("SELECT COUNT(*) FROM amostras WHERE status = 'Reprovada'").fetchone()[0]
-    pendentes = db.execute("SELECT COUNT(*) FROM amostras WHERE status = 'Pendente'").fetchone()[0]
+    periodo = request.args.get('periodo', 'todos')
+    filtro_data = ''
+    params_data = []
+
+    if periodo == '7d':
+        filtro_data = " AND a.data_coleta >= date('now', '-7 days')"
+    elif periodo == '30d':
+        filtro_data = " AND a.data_coleta >= date('now', '-30 days')"
+    elif periodo == '90d':
+        filtro_data = " AND a.data_coleta >= date('now', '-90 days')"
+    elif periodo == '6m':
+        filtro_data = " AND a.data_coleta >= date('now', '-6 months')"
+    elif periodo == '1a':
+        filtro_data = " AND a.data_coleta >= date('now', '-1 year')"
+    elif periodo == 'custom':
+        data_inicio = request.args.get('data_inicio', '')
+        data_fim = request.args.get('data_fim', '')
+        if data_inicio and data_fim:
+            filtro_data = " AND a.data_coleta >= ? AND a.data_coleta <= ?"
+            params_data = [data_inicio, data_fim]
+
+    total_amostras = db.execute(
+        f'SELECT COUNT(*) FROM amostras a WHERE 1=1{filtro_data}', params_data
+    ).fetchone()[0]
+    aprovadas = db.execute(
+        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Aprovada'{filtro_data}", params_data
+    ).fetchone()[0]
+    reprovadas = db.execute(
+        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Reprovada'{filtro_data}", params_data
+    ).fetchone()[0]
+    pendentes = db.execute(
+        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Pendente'{filtro_data}", params_data
+    ).fetchone()[0]
 
     total_finalizadas = aprovadas + reprovadas
     taxa_conformidade = round((aprovadas / total_finalizadas * 100), 1) if total_finalizadas > 0 else 0
 
-    ultimas_amostras = db.execute('''
+    ultimas_amostras = db.execute(f'''
         SELECT a.id, p.nome as produto, a.numero_lote, a.data_coleta, a.status
         FROM amostras a
         JOIN produtos p ON a.produto_id = p.id
+        WHERE 1=1{filtro_data}
         ORDER BY a.data_coleta DESC
         LIMIT 5
-    ''').fetchall()
+    ''', params_data).fetchall()
 
-    amostras_por_produto = db.execute('''
+    join_filtro = f" AND 1=1{filtro_data}" if filtro_data else ""
+    amostras_por_produto = db.execute(f'''
         SELECT p.nome, COUNT(a.id) as total
         FROM produtos p
-        LEFT JOIN amostras a ON p.id = a.produto_id
+        LEFT JOIN amostras a ON p.id = a.produto_id{join_filtro}
         GROUP BY p.id
         ORDER BY total DESC
-    ''').fetchall()
+    ''', params_data).fetchall()
 
-    conformidade_por_produto = db.execute('''
+    conformidade_por_produto = db.execute(f'''
         SELECT p.nome,
             SUM(CASE WHEN a.status = 'Aprovada' THEN 1 ELSE 0 END) as aprovadas,
             SUM(CASE WHEN a.status = 'Reprovada' THEN 1 ELSE 0 END) as reprovadas
         FROM produtos p
-        LEFT JOIN amostras a ON p.id = a.produto_id AND a.status IN ('Aprovada', 'Reprovada')
+        LEFT JOIN amostras a ON p.id = a.produto_id AND a.status IN ('Aprovada', 'Reprovada'){filtro_data}
         GROUP BY p.id
-    ''').fetchall()
+    ''', params_data).fetchall()
 
     db.close()
 
@@ -196,7 +272,10 @@ def dashboard():
         taxa_conformidade=taxa_conformidade,
         ultimas_amostras=ultimas_amostras,
         amostras_por_produto=amostras_por_produto,
-        conformidade_por_produto=conformidade_por_produto
+        conformidade_por_produto=conformidade_por_produto,
+        periodo=periodo,
+        data_inicio=request.args.get('data_inicio', ''),
+        data_fim=request.args.get('data_fim', '')
     )
 
 
@@ -293,6 +372,7 @@ def nova_amostra():
                 VALUES (?, ?, NULL, NULL, NULL, NULL)
             ''', [amostra_id, param['id']])
 
+        registrar_historico(db, 'Criou', 'Amostra', amostra_id, f'Lote {numero_lote}')
         db.commit()
         db.close()
 
@@ -349,6 +429,7 @@ def editar_amostra(amostra_id):
             UPDATE amostras SET numero_lote = ?, data_coleta = ?, responsavel = ?
             WHERE id = ?
         ''', [numero_lote, data_coleta, responsavel, amostra_id])
+        registrar_historico(db, 'Editou', 'Amostra', amostra_id, f'Lote {numero_lote}')
         db.commit()
         db.close()
 
@@ -361,6 +442,7 @@ def editar_amostra(amostra_id):
 
 @app.route('/amostras/<int:amostra_id>/excluir', methods=['POST'])
 @login_required
+@perfil_minimo('coordenador')
 def excluir_amostra(amostra_id):
     db = get_db()
     amostra = buscar_amostra(db, amostra_id)
@@ -370,8 +452,10 @@ def excluir_amostra(amostra_id):
         flash('Amostra não encontrada.', 'error')
         return redirect(url_for('listar_amostras'))
 
+    lote = amostra['numero_lote']
     db.execute('DELETE FROM resultados WHERE amostra_id = ?', [amostra_id])
     db.execute('DELETE FROM amostras WHERE id = ?', [amostra_id])
+    registrar_historico(db, 'Excluiu', 'Amostra', amostra_id, f'Lote {lote}')
     db.commit()
     db.close()
 
@@ -441,6 +525,7 @@ def registrar_ensaios(amostra_id):
 
         novo_status = 'Aprovada' if todos_conformes else 'Reprovada'
         db.execute('UPDATE amostras SET status = ? WHERE id = ?', [novo_status, amostra_id])
+        registrar_historico(db, 'Registrou ensaios', 'Amostra', amostra_id, f'Status: {novo_status}')
 
         db.commit()
         db.close()
@@ -515,6 +600,95 @@ def gerar_laudo_pdf(amostra_id):
         os.unlink(tmp.name)
 
     return response
+
+
+# --- Historico ---
+
+@app.route('/historico')
+@login_required
+@perfil_minimo('coordenador')
+def historico():
+    db = get_db()
+    pagina = request.args.get('pagina', 1, type=int)
+    por_pagina = 20
+
+    total = db.execute('SELECT COUNT(*) FROM historico').fetchone()[0]
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+    pagina = max(1, min(pagina, total_paginas))
+
+    registros = db.execute('''
+        SELECT * FROM historico
+        ORDER BY data_hora DESC
+        LIMIT ? OFFSET ?
+    ''', [por_pagina, (pagina - 1) * por_pagina]).fetchall()
+    db.close()
+
+    return render_template('historico.html',
+        registros=registros,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total=total
+    )
+
+
+# --- Gestao de usuarios (admin) ---
+
+@app.route('/usuarios')
+@login_required
+@perfil_minimo('admin')
+def listar_usuarios():
+    db = get_db()
+    usuarios = db.execute('SELECT * FROM usuarios ORDER BY nome').fetchall()
+    db.close()
+    return render_template('usuarios/lista.html', usuarios=usuarios, perfil_labels=PERFIL_LABELS)
+
+
+@app.route('/usuarios/<int:usuario_id>/perfil', methods=['POST'])
+@login_required
+@perfil_minimo('admin')
+def alterar_perfil(usuario_id):
+    novo_perfil = request.form.get('perfil', 'tecnico')
+    if novo_perfil not in PERFIS:
+        flash('Perfil inválido.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    db = get_db()
+    usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
+    if not usuario:
+        db.close()
+        flash('Usuário não encontrado.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    db.execute('UPDATE usuarios SET perfil = ? WHERE id = ?', [novo_perfil, usuario_id])
+    registrar_historico(db, 'Alterou perfil', 'Usuário', usuario_id,
+                        f'{usuario["nome"]}: {PERFIL_LABELS.get(novo_perfil, novo_perfil)}')
+    db.commit()
+    db.close()
+
+    flash(f'Perfil de {usuario["nome"]} atualizado para {PERFIL_LABELS.get(novo_perfil)}.', 'success')
+    return redirect(url_for('listar_usuarios'))
+
+
+@app.route('/usuarios/<int:usuario_id>/ativar', methods=['POST'])
+@login_required
+@perfil_minimo('admin')
+def toggle_usuario(usuario_id):
+    db = get_db()
+    usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
+    if not usuario:
+        db.close()
+        flash('Usuário não encontrado.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    novo_estado = 0 if usuario['ativo'] else 1
+    acao = 'Ativou' if novo_estado else 'Desativou'
+    db.execute('UPDATE usuarios SET ativo = ? WHERE id = ?', [novo_estado, usuario_id])
+    registrar_historico(db, acao, 'Usuário', usuario_id, usuario['nome'])
+    db.commit()
+    db.close()
+
+    flash(f'Usuário {usuario["nome"]} {"ativado" if novo_estado else "desativado"}.', 'success')
+    return redirect(url_for('listar_usuarios'))
 
 
 # --- Pagina de erro ---

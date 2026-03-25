@@ -50,6 +50,26 @@
                     <span>Nova Amostra</span>
                 </a>
             </li>
+
+            {% if session.get('usuario_perfil') in ['coordenador', 'gerente', 'admin'] %}
+            <li class="nav-section">GESTÃO</li>
+            <li>
+                <a href="{{ url_for('historico') }}" class="{% if request.endpoint == 'historico' %}active{% endif %}">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Histórico</span>
+                </a>
+            </li>
+            {% endif %}
+
+            {% if session.get('usuario_perfil') == 'admin' %}
+            <li class="nav-section">ADMINISTRAÇÃO</li>
+            <li>
+                <a href="{{ url_for('listar_usuarios') }}" class="{% if 'usuario' in request.endpoint|default('') %}active{% endif %}">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Usuários</span>
+                </a>
+            </li>
+            {% endif %}
         </ul>
 
         <div class="sidebar-footer">
@@ -77,6 +97,7 @@
                     <span style="font-size: 13px; color: var(--text-secondary);">
                         <i class="bi bi-person-circle"></i>
                         {{ session.usuario_nome }}
+                        <span style="font-size: 11px; opacity: 0.7;">({{ session.get('usuario_perfil', 'tecnico')|capitalize }})</span>
                     </span>
                     <a href="{{ url_for('logout') }}" class="btn-outline" style="padding: 5px 12px; font-size: 12px;"
                        onclick="return confirm('Tem certeza que deseja sair do sistema?');">

@@ -4,6 +4,34 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
+<!-- FILTRO DE PERÍODO -->
+<div class="card-panel mb-4">
+    <div class="card-panel-body" style="padding: 14px 20px;">
+        <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">
+                <i class="bi bi-funnel"></i> Período:
+            </span>
+            {% for valor, label in [('todos', 'Todos'), ('7d', '7 dias'), ('30d', '30 dias'), ('90d', '90 dias'), ('6m', '6 meses'), ('1a', '1 ano'), ('custom', 'Personalizado')] %}
+                {% if valor != 'custom' %}
+                <a href="{{ url_for('dashboard', periodo=valor) }}"
+                   class="{{ 'btn-brand' if periodo == valor else 'btn-outline' }}"
+                   style="padding: 5px 14px; font-size: 12px;">{{ label }}</a>
+                {% endif %}
+            {% endfor %}
+            <span style="color: var(--border); margin: 0 4px;">|</span>
+            <input type="date" name="data_inicio" class="form-control" style="width: 140px; padding: 5px 10px; font-size: 12px;"
+                   value="{{ data_inicio }}" placeholder="Início">
+            <span style="font-size: 12px; color: var(--text-secondary);">até</span>
+            <input type="date" name="data_fim" class="form-control" style="width: 140px; padding: 5px 10px; font-size: 12px;"
+                   value="{{ data_fim }}" placeholder="Fim">
+            <input type="hidden" name="periodo" value="custom">
+            <button type="submit" class="btn-outline" style="padding: 5px 12px; font-size: 12px;">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- MÉTRICAS -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">

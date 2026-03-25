@@ -39,12 +39,14 @@
                     <a href="{{ url_for('editar_amostra', amostra_id=amostra.id) }}" class="btn-outline" style="padding: 6px 14px; font-size: 13px;">
                         <i class="bi bi-pencil"></i> Editar
                     </a>
+                    {% if session.get('usuario_perfil') in ['coordenador', 'gerente', 'admin'] %}
                     <form method="POST" action="{{ url_for('excluir_amostra', amostra_id=amostra.id) }}" style="display:inline;"
                           onsubmit="return confirm('Tem certeza que deseja excluir esta amostra? Todos os resultados serão perdidos.');">
                         <button type="submit" class="btn-outline" style="padding: 6px 14px; font-size: 13px; color: var(--danger);">
                             <i class="bi bi-trash"></i> Excluir
                         </button>
                     </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
