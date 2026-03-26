@@ -1,9 +1,51 @@
 {% extends "base.html" %}
 
-{% block title %}Histórico{% endblock %}
-{% block page_title %}Histórico de Alterações{% endblock %}
+{% block title %}Historico{% endblock %}
+{% block page_title %}Historico de Alteracoes{% endblock %}
 
 {% block content %}
+<!-- Filtros -->
+<div class="card-panel mb-4">
+    <div class="card-panel-body" style="padding: 14px 20px;">
+        <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">
+                <i class="bi bi-funnel"></i> Filtros:
+            </span>
+
+            <select name="usuario" class="form-select" style="width: 160px; padding: 5px 10px; font-size: 12px;">
+                <option value="">Todos os usuarios</option>
+                {% for u in usuarios_historico %}
+                <option value="{{ u.usuario_nome }}" {{ 'selected' if filtro_usuario == u.usuario_nome }}>{{ u.usuario_nome }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="acao" class="form-select" style="width: 160px; padding: 5px 10px; font-size: 12px;">
+                <option value="">Todas as acoes</option>
+                {% for a in acoes_historico %}
+                <option value="{{ a.acao }}" {{ 'selected' if filtro_acao == a.acao }}>{{ a.acao }}</option>
+                {% endfor %}
+            </select>
+
+            <span style="color: var(--border); margin: 0 4px;">|</span>
+
+            <input type="date" name="data_inicio" class="form-control" style="width: 140px; padding: 5px 10px; font-size: 12px;"
+                   value="{{ filtro_data_inicio }}" title="Data inicial">
+            <span style="font-size: 12px; color: var(--text-secondary);">ate</span>
+            <input type="date" name="data_fim" class="form-control" style="width: 140px; padding: 5px 10px; font-size: 12px;"
+                   value="{{ filtro_data_fim }}" title="Data final">
+
+            <button type="submit" class="btn-brand" style="padding: 5px 14px; font-size: 12px;">
+                <i class="bi bi-search"></i> Buscar
+            </button>
+            {% if filtro_usuario or filtro_acao or filtro_data_inicio or filtro_data_fim %}
+            <a href="{{ url_for('historico') }}" class="btn-outline" style="padding: 5px 14px; font-size: 12px;">
+                <i class="bi bi-x-circle"></i> Limpar
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
 <div class="card-panel">
     <div class="card-panel-header">
         <h3><i class="bi bi-clock-history"></i> Registro de atividades</h3>
@@ -14,8 +56,8 @@
             <thead>
                 <tr>
                     <th>Data/Hora</th>
-                    <th>Usuário</th>
-                    <th>Ação</th>
+                    <th>Usuario</th>
+                    <th>Acao</th>
                     <th>Entidade</th>
                     <th>Detalhes</th>
                 </tr>
@@ -49,17 +91,17 @@
     {% if total_paginas > 1 %}
     <div class="card-panel-body" style="border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <span style="font-size: 13px; color: var(--text-secondary);">
-            Página {{ pagina }} de {{ total_paginas }}
+            Pagina {{ pagina }} de {{ total_paginas }}
         </span>
         <div class="d-flex gap-1">
             {% if pagina > 1 %}
-            <a href="{{ url_for('historico', pagina=pagina-1) }}" class="btn-outline" style="padding: 4px 12px; font-size: 13px;">
+            <a href="{{ url_for('historico', pagina=pagina-1, usuario=filtro_usuario, acao=filtro_acao, data_inicio=filtro_data_inicio, data_fim=filtro_data_fim) }}" class="btn-outline" style="padding: 4px 12px; font-size: 13px;">
                 <i class="bi bi-chevron-left"></i> Anterior
             </a>
             {% endif %}
             {% if pagina < total_paginas %}
-            <a href="{{ url_for('historico', pagina=pagina+1) }}" class="btn-outline" style="padding: 4px 12px; font-size: 13px;">
-                Próxima <i class="bi bi-chevron-right"></i>
+            <a href="{{ url_for('historico', pagina=pagina+1, usuario=filtro_usuario, acao=filtro_acao, data_inicio=filtro_data_inicio, data_fim=filtro_data_fim) }}" class="btn-outline" style="padding: 4px 12px; font-size: 13px;">
+                Proxima <i class="bi bi-chevron-right"></i>
             </a>
             {% endif %}
         </div>

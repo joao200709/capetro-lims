@@ -29,11 +29,11 @@
                         <div class="col-md-6">
                             <label class="form-label">Técnico Responsável</label>
                             <input type="text" name="tecnico" class="form-control"
-                                   placeholder="Nome do técnico" required>
+                                   placeholder="Nome do técnico" value="{{ form.tecnico if form }}" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Data do Ensaio</label>
-                            <input type="date" name="data_ensaio" class="form-control" required>
+                            <input type="date" name="data_ensaio" class="form-control" value="{{ form.data_ensaio if form }}" required>
                         </div>
                     </div>
 
@@ -74,6 +74,7 @@
                                                class="form-control ensaio-input"
                                                data-min="{{ r.valor_minimo if r.valor_minimo is not none else '' }}"
                                                data-max="{{ r.valor_maximo if r.valor_maximo is not none else '' }}"
+                                               value="{{ form.valores['valor_' ~ r.id|string] if form and form.valores and ('valor_' ~ r.id|string) in form.valores else '' }}"
                                                placeholder="0.00"
                                                required>
                                     </td>
@@ -101,32 +102,35 @@
 
 {% block scripts %}
 <script>
-document.querySelectorAll('.ensaio-input').forEach(function(input) {
+function verificarValor(input) {
     var feedback = input.closest('tr').querySelector('.ensaio-feedback');
+    var val = parseFloat(input.value);
+    var min = input.dataset.min;
+    var max = input.dataset.max;
 
-    input.addEventListener('input', function() {
-        var val = parseFloat(input.value);
-        var min = input.dataset.min;
-        var max = input.dataset.max;
+    if (isNaN(val) || input.value === '') {
+        feedback.textContent = '';
+        input.style.borderColor = '';
+        return;
+    }
 
-        if (isNaN(val) || input.value === '') {
-            feedback.textContent = '';
-            input.style.borderColor = '';
-            return;
-        }
+    var conforme = true;
+    if (min !== '' && val < parseFloat(min)) conforme = false;
+    if (max !== '' && val > parseFloat(max)) conforme = false;
 
-        var conforme = true;
-        if (min !== '' && val < parseFloat(min)) conforme = false;
-        if (max !== '' && val > parseFloat(max)) conforme = false;
+    if (conforme) {
+        feedback.innerHTML = '<span class="badge-conforme">OK</span>';
+        input.style.borderColor = 'var(--success)';
+    } else {
+        feedback.innerHTML = '<span class="badge-nconforme">Fora</span>';
+        input.style.borderColor = 'var(--danger)';
+    }
+}
 
-        if (conforme) {
-            feedback.innerHTML = '<span class="badge-conforme">OK</span>';
-            input.style.borderColor = 'var(--success)';
-        } else {
-            feedback.innerHTML = '<span class="badge-nconforme">Fora</span>';
-            input.style.borderColor = 'var(--danger)';
-        }
-    });
+document.querySelectorAll('.ensaio-input').forEach(function(input) {
+    input.addEventListener('input', function() { verificarValor(input); });
+    // Recalcula ao carregar a pagina (pra quando o form volta com valores preenchidos)
+    if (input.value) verificarValor(input);
 });
 </script>
 {% endblock %}

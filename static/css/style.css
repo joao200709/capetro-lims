@@ -20,6 +20,49 @@
     --radius: 10px;
 }
 
+[data-theme="dark"] {
+    --brand-dark: #0a0f14;
+    --brand-primary: #4a9af5;
+    --brand-accent: #f5a623;
+    --sidebar-bg: #0a0f14;
+    --surface: #1a1f2e;
+    --surface-alt: #141824;
+    --text-primary: #e4e6eb;
+    --text-secondary: #9ca3af;
+    --border: #2d3348;
+    --success: #34d399;
+    --danger: #f87171;
+    --warning: #fbbf24;
+}
+
+[data-theme="dark"] .badge-status.aprovada  { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .badge-status.reprovada { background: #7f1d1d; color: #fca5a5; }
+[data-theme="dark"] .badge-status.pendente  { background: #78350f; color: #fde68a; }
+[data-theme="dark"] .badge-conforme    { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .badge-nconforme   { background: #7f1d1d; color: #fca5a5; }
+[data-theme="dark"] .notif-dropdown    { background: #1a1f2e !important; border-color: #2d3348 !important; }
+[data-theme="dark"] .notif-dropdown a  { color: #e4e6eb !important; border-color: #2d3348 !important; }
+[data-theme="dark"] .notif-dropdown a:hover { background: #141824 !important; }
+[data-theme="dark"] .notif-dropdown .notif-header { border-color: #2d3348 !important; }
+[data-theme="dark"] .badge-pendente-sm { background: #2d3348; color: #9ca3af; }
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background: var(--surface-alt);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .alert-success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+[data-theme="dark"] .alert-danger  { background: #7f1d1d; color: #fca5a5; border-color: #991b1b; }
+[data-theme="dark"] .btn-close { filter: invert(1); }
+[data-theme="dark"] .progress { background: var(--border); }
+
+[data-theme="dark"] .laudo-container { background: var(--surface); }
+[data-theme="dark"] .laudo-header { border-color: var(--border); }
+[data-theme="dark"] .laudo-table th { background: #0a0f14; }
+[data-theme="dark"] .laudo-table tr:nth-child(even) { background: var(--surface-alt); }
+
 * {
     margin: 0;
     padding: 0;

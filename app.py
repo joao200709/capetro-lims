@@ -51,6 +51,16 @@ def buscar_amostra(db, amostra_id, com_descricao=False):
     ''', [amostra_id]).fetchone()
 
 
+def buscar_amostra_ou_redirecionar(db, amostra_id, com_descricao=False):
+    """Busca amostra e retorna. Se nao existir, fecha db e retorna (None, redirect)."""
+    amostra = buscar_amostra(db, amostra_id, com_descricao)
+    if not amostra:
+        db.close()
+        flash('Amostra não encontrada.', 'error')
+        return None, redirect(url_for('listar_amostras'))
+    return amostra, None
+
+
 def buscar_resultados(db, amostra_id):
     return db.execute('''
         SELECT r.*, pe.nome_parametro, pe.unidade, pe.valor_minimo, pe.valor_maximo, pe.metodo_ensaio
@@ -120,6 +130,65 @@ def filtro_data_br(valor):
         return dt.strftime('%d/%m/%Y')
     except (ValueError, TypeError):
         return valor
+
+
+DIAS_PENDENTE_ALERTA = 7
+
+
+@app.context_processor
+def injetar_notificacoes():
+    """Injeta notificacoes em todos os templates automaticamente."""
+    if 'usuario_id' not in session or request.endpoint in ('static', 'login', 'logout'):
+        return {'notificacoes': [], 'total_notificacoes': 0}
+
+    try:
+        db = get_db()
+        notificacoes = []
+
+        # Amostras reprovadas nos ultimos 30 dias
+        reprovadas = db.execute('''
+            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
+            FROM amostras a
+            JOIN produtos p ON a.produto_id = p.id
+            WHERE a.status = 'Reprovada'
+            AND a.data_coleta >= ?
+            ORDER BY a.data_coleta DESC
+            LIMIT 10
+        ''', [datetime.now().strftime('%Y-%m-%d')[:8] + '01']).fetchall()
+
+        for r in reprovadas:
+            notificacoes.append({
+                'tipo': 'reprovada',
+                'texto': f'{r["produto"]} — Lote {r["numero_lote"]} reprovada',
+                'data': r['data_coleta'],
+                'url': f'/amostras/{r["id"]}'
+            })
+
+        # Amostras pendentes ha mais de X dias
+        limite = (datetime.now() - timedelta(days=DIAS_PENDENTE_ALERTA)).strftime('%Y-%m-%d')
+        pendentes = db.execute('''
+            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
+            FROM amostras a
+            JOIN produtos p ON a.produto_id = p.id
+            WHERE a.status = 'Pendente'
+            AND a.data_coleta <= ?
+            ORDER BY a.data_coleta ASC
+            LIMIT 10
+        ''', [limite]).fetchall()
+
+        for p in pendentes:
+            dias = (datetime.now() - datetime.strptime(p['data_coleta'], '%Y-%m-%d')).days
+            notificacoes.append({
+                'tipo': 'pendente',
+                'texto': f'{p["produto"]} — Lote {p["numero_lote"]} pendente há {dias} dias',
+                'data': p['data_coleta'],
+                'url': f'/amostras/{p["id"]}'
+            })
+
+        db.close()
+        return {'notificacoes': notificacoes, 'total_notificacoes': len(notificacoes)}
+    except Exception:
+        return {'notificacoes': [], 'total_notificacoes': 0}
 
 
 _db_initialized = False
@@ -365,6 +434,18 @@ def dashboard():
         GROUP BY p.id
     ''', params_data).fetchall()
 
+    # Tendencia mensal: amostras por mes nos ultimos 12 meses
+    tendencia = db.execute(f'''
+        SELECT TO_CHAR(a.data_coleta::date, 'YYYY-MM') as mes,
+            COUNT(*) as total,
+            SUM(CASE WHEN a.status = 'Aprovada' THEN 1 ELSE 0 END) as aprovadas,
+            SUM(CASE WHEN a.status = 'Reprovada' THEN 1 ELSE 0 END) as reprovadas
+        FROM amostras a
+        WHERE a.data_coleta::date >= CURRENT_DATE - INTERVAL '12 months'
+        GROUP BY TO_CHAR(a.data_coleta::date, 'YYYY-MM')
+        ORDER BY mes
+    ''').fetchall()
+
     db.close()
 
     return render_template('dashboard.html',
@@ -376,6 +457,7 @@ def dashboard():
         ultimas_amostras=ultimas_amostras,
         amostras_por_produto=amostras_por_produto,
         conformidade_por_produto=conformidade_por_produto,
+        tendencia=tendencia,
         periodo=periodo,
         data_inicio=request.args.get('data_inicio', ''),
         data_fim=request.args.get('data_fim', '')
@@ -452,11 +534,19 @@ def nova_amostra():
         data_coleta = request.form.get('data_coleta', '').strip()
         responsavel = request.form.get('responsavel', '').strip()
 
+        form_data = {'produto_id': produto_id, 'numero_lote': numero_lote, 'data_coleta': data_coleta, 'responsavel': responsavel}
+
         if not all([produto_id, numero_lote, data_coleta, responsavel]):
             flash('Preencha todos os campos.', 'error')
             produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
             db.close()
-            return render_template('amostras/nova.html', produtos=produtos)
+            return render_template('amostras/nova.html', produtos=produtos, form=form_data)
+
+        if data_coleta > datetime.now().strftime('%Y-%m-%d'):
+            flash('A data de coleta não pode ser depois de hoje.', 'error')
+            produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
+            db.close()
+            return render_template('amostras/nova.html', produtos=produtos, form=form_data)
 
         cursor = db.execute('''
             INSERT INTO amostras (produto_id, numero_lote, data_coleta, responsavel, status)
@@ -491,12 +581,8 @@ def nova_amostra():
 @login_required
 def detalhe_amostra(amostra_id):
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id)
-
-    if not amostra:
-        db.close()
-        flash('Amostra não encontrada.', 'error')
-        return redirect(url_for('listar_amostras'))
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
+    if redir: return redir
 
     resultados = buscar_resultados(db, amostra_id)
     db.close()
@@ -511,12 +597,8 @@ def detalhe_amostra(amostra_id):
 @login_required
 def editar_amostra(amostra_id):
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id)
-
-    if not amostra:
-        db.close()
-        flash('Amostra não encontrada.', 'error')
-        return redirect(url_for('listar_amostras'))
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
+    if redir: return redir
 
     if request.method == 'POST':
         numero_lote = request.form.get('numero_lote', '').strip()
@@ -548,12 +630,8 @@ def editar_amostra(amostra_id):
 @perfil_minimo('coordenador')
 def excluir_amostra(amostra_id):
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id)
-
-    if not amostra:
-        db.close()
-        flash('Amostra não encontrada.', 'error')
-        return redirect(url_for('listar_amostras'))
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
+    if redir: return redir
 
     lote = amostra['numero_lote']
     db.execute('DELETE FROM resultados WHERE amostra_id = ?', [amostra_id])
@@ -572,22 +650,36 @@ def excluir_amostra(amostra_id):
 @login_required
 def registrar_ensaios(amostra_id):
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id)
-
-    if not amostra:
-        db.close()
-        flash('Amostra não encontrada.', 'error')
-        return redirect(url_for('listar_amostras'))
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
+    if redir: return redir
 
     if request.method == 'POST':
         tecnico = request.form.get('tecnico', '').strip()
         data_ensaio = request.form.get('data_ensaio', '').strip()
 
+        valores_ensaios = {}
+        for key in request.form:
+            if key.startswith('valor_'):
+                valores_ensaios[key] = request.form[key]
+        form_data = {'tecnico': tecnico, 'data_ensaio': data_ensaio, 'valores': valores_ensaios}
+
         if not tecnico or not data_ensaio:
             flash('Preencha o técnico e a data do ensaio.', 'error')
             resultados = buscar_resultados(db, amostra_id)
             db.close()
-            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
+
+        if data_ensaio > datetime.now().strftime('%Y-%m-%d'):
+            flash('A data do ensaio não pode ser depois de hoje.', 'error')
+            resultados = buscar_resultados(db, amostra_id)
+            db.close()
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
+
+        if data_ensaio < amostra['data_coleta']:
+            flash('A data do ensaio não pode ser antes da data de coleta da amostra.', 'error')
+            resultados = buscar_resultados(db, amostra_id)
+            db.close()
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
 
         todos_conformes = True
 
@@ -611,13 +703,13 @@ def registrar_ensaios(amostra_id):
                     db.close()
                     return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
 
-                conforme = True
+                conforme = 1
                 if resultado['valor_minimo'] is not None and valor < resultado['valor_minimo']:
-                    conforme = False
+                    conforme = 0
                 if resultado['valor_maximo'] is not None and valor > resultado['valor_maximo']:
-                    conforme = False
+                    conforme = 0
 
-                if not conforme:
+                if conforme == 0:
                     todos_conformes = False
 
                 db.execute('''
@@ -651,12 +743,8 @@ def registrar_ensaios(amostra_id):
 @login_required
 def gerar_laudo(amostra_id):
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id, com_descricao=True)
-
-    if not amostra:
-        db.close()
-        flash('Amostra não encontrada.', 'error')
-        return redirect(url_for('listar_amostras'))
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id, com_descricao=True)
+    if redir: return redir
 
     resultados = buscar_resultados(db, amostra_id)
     db.close()
@@ -678,7 +766,8 @@ def gerar_laudo_pdf(amostra_id):
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
     db = get_db()
-    amostra = buscar_amostra(db, amostra_id, com_descricao=True)
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id, com_descricao=True)
+    if redir: return redir
     resultados = buscar_resultados(db, amostra_id)
     db.close()
 
@@ -715,22 +804,58 @@ def historico():
     pagina = request.args.get('pagina', 1, type=int)
     por_pagina = 20
 
-    total = db.execute('SELECT COUNT(*) FROM historico').fetchone()[0]
+    filtro_usuario = request.args.get('usuario', '').strip()
+    filtro_acao = request.args.get('acao', '').strip()
+    filtro_data_inicio = request.args.get('data_inicio', '').strip()
+    filtro_data_fim = request.args.get('data_fim', '').strip()
+
+    where = ' WHERE 1=1'
+    params = []
+
+    if filtro_usuario:
+        where += ' AND h.usuario_nome LIKE ?'
+        params.append(f'%{filtro_usuario}%')
+    if filtro_acao:
+        where += ' AND h.acao LIKE ?'
+        params.append(f'%{filtro_acao}%')
+    if filtro_data_inicio:
+        where += ' AND h.data_hora::date >= ?::date'
+        params.append(filtro_data_inicio)
+    if filtro_data_fim:
+        where += ' AND h.data_hora::date <= ?::date'
+        params.append(filtro_data_fim)
+
+    total = db.execute(f'SELECT COUNT(*) FROM historico h{where}', params).fetchone()[0]
     total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
     pagina = max(1, min(pagina, total_paginas))
 
-    registros = db.execute('''
-        SELECT * FROM historico
-        ORDER BY data_hora DESC
+    registros = db.execute(f'''
+        SELECT h.* FROM historico h{where}
+        ORDER BY h.data_hora DESC
         LIMIT ? OFFSET ?
-    ''', [por_pagina, (pagina - 1) * por_pagina]).fetchall()
+    ''', params + [por_pagina, (pagina - 1) * por_pagina]).fetchall()
+
+    # Lista de usuarios e acoes unicas pra popular os filtros
+    usuarios_historico = db.execute(
+        'SELECT DISTINCT usuario_nome FROM historico ORDER BY usuario_nome'
+    ).fetchall()
+    acoes_historico = db.execute(
+        'SELECT DISTINCT acao FROM historico ORDER BY acao'
+    ).fetchall()
+
     db.close()
 
     return render_template('historico.html',
         registros=registros,
         pagina=pagina,
         total_paginas=total_paginas,
-        total=total
+        total=total,
+        filtro_usuario=filtro_usuario,
+        filtro_acao=filtro_acao,
+        filtro_data_inicio=filtro_data_inicio,
+        filtro_data_fim=filtro_data_fim,
+        usuarios_historico=usuarios_historico,
+        acoes_historico=acoes_historico
     )
 
 

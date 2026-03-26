@@ -17,7 +17,14 @@
 
     {% block head %}{% endblock %}
 </head>
-<body>
+<body data-theme="">
+<script>
+    // Aplica o tema salvo antes de renderizar pra evitar flash branco
+    (function() {
+        var t = localStorage.getItem('tema') || 'light';
+        if (t === 'dark') document.body.setAttribute('data-theme', 'dark');
+    })();
+</script>
 
     <!-- SIDEBAR -->
     <nav class="sidebar" id="sidebar">
@@ -101,7 +108,47 @@
                     <i class="bi bi-calendar3"></i>
                     {{ now().strftime('%d/%m/%Y') if now is defined else '' }}
                 </span>
+                <button onclick="toggleTema()" class="btn-outline" style="padding: 5px 10px; font-size: 14px; border: none;" title="Alternar tema">
+                    <i class="bi bi-moon-fill" id="icone-tema"></i>
+                </button>
                 {% if session.get('usuario_nome') %}
+                <!-- Sininho de notificacoes -->
+                <div class="notif-wrapper" style="position: relative;">
+                    <button class="btn-outline" style="padding: 5px 10px; font-size: 14px; border: none; position: relative; cursor: pointer;" title="Notificações">
+                        <i class="bi bi-bell-fill"></i>
+                        {% if total_notificacoes > 0 %}
+                        <span style="position: absolute; top: -2px; right: -2px; background: var(--danger); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: 700;">{{ total_notificacoes }}</span>
+                        {% endif %}
+                    </button>
+                    <div id="notif-dropdown" class="notif-dropdown" style="display: none; position: absolute; right: 0; top: 40px; width: 360px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 1000; max-height: 400px; overflow-y: auto;">
+                        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px;">
+                            <i class="bi bi-bell"></i> Notificações
+                            {% if total_notificacoes > 0 %}
+                            <span style="background: var(--danger); color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; margin-left: 6px;">{{ total_notificacoes }}</span>
+                            {% endif %}
+                        </div>
+                        {% if notificacoes %}
+                            {% for n in notificacoes %}
+                            <a href="{{ n.url }}" style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; text-decoration: none; color: var(--text-primary); border-bottom: 1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                                {% if n.tipo == 'reprovada' %}
+                                <span style="color: var(--danger); font-size: 18px; margin-top: 2px;"><i class="bi bi-x-circle-fill"></i></span>
+                                {% else %}
+                                <span style="color: var(--warning, #f59e0b); font-size: 18px; margin-top: 2px;"><i class="bi bi-hourglass-split"></i></span>
+                                {% endif %}
+                                <div>
+                                    <div style="font-size: 13px; line-height: 1.4;">{{ n.texto }}</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">{{ n.data|data_br }}</div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        {% else %}
+                            <div style="padding: 24px 16px; text-align: center; color: var(--text-secondary); font-size: 13px;">
+                                <i class="bi bi-check-circle" style="font-size: 24px; display: block; margin-bottom: 8px;"></i>
+                                Nenhuma notificação no momento
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 13px; color: var(--text-secondary);">
                         <i class="bi bi-person-circle"></i>
@@ -140,6 +187,44 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+    <script>
+    function toggleTema() {
+        var dark = document.body.getAttribute('data-theme') === 'dark';
+        document.body.setAttribute('data-theme', dark ? '' : 'dark');
+        localStorage.setItem('tema', dark ? 'light' : 'dark');
+        atualizarIconeTema();
+    }
+    function atualizarIconeTema() {
+        var icone = document.getElementById('icone-tema');
+        if (icone) {
+            var dark = document.body.getAttribute('data-theme') === 'dark';
+            icone.className = dark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+    }
+    atualizarIconeTema();
+
+    // Fecha dropdown de notificacoes ao clicar fora
+    document.addEventListener('click', function(e) {
+        var dropdown = document.getElementById('notif-dropdown');
+        var wrapper = document.querySelector('.notif-wrapper');
+        if (dropdown && wrapper && !wrapper.contains(e.target)) {
+            dropdown.classList.remove('show');
+            dropdown.style.display = 'none';
+        }
+    });
+
+    // Toggle do dropdown
+    var notifBtn = document.querySelector('.notif-wrapper > button');
+    if (notifBtn) {
+        notifBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var dropdown = document.getElementById('notif-dropdown');
+            var aberto = dropdown.style.display === 'block';
+            dropdown.style.display = aberto ? 'none' : 'block';
+        });
+    }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>
