@@ -234,13 +234,13 @@ def seed_data():
     ])
 
     amostras_demo = [
-        (1, 'CAP-2025-001', '2025-03-10', 'Joao Silva',      'Aprovada'),
-        (1, 'CAP-2025-002', '2025-03-12', 'Joao Silva',      'Aprovada'),
-        (2, 'RR1C-2025-001','2025-03-11', 'Maria Santos',    'Reprovada'),
-        (3, 'RR2C-2025-001','2025-03-13', 'Maria Santos',    'Aprovada'),
-        (1, 'CAP-2025-003', '2025-03-15', 'Joao Silva',      'Pendente'),
-        (4, 'IMP-2025-001', '2025-03-16', 'Carlos Oliveira', 'Aprovada'),
-        (2, 'RR1C-2025-002','2025-03-18', 'Maria Santos',    'Pendente'),
+        (1, 'CAP-2026-001', '2026-01-10', 'Joao Silva',      'Aprovada'),
+        (1, 'CAP-2026-002', '2026-01-25', 'Joao Silva',      'Aprovada'),
+        (2, 'RR1C-2026-001','2026-02-05', 'Maria Santos',    'Reprovada'),
+        (3, 'RR2C-2026-001','2026-02-18', 'Maria Santos',    'Aprovada'),
+        (1, 'CAP-2026-003', '2026-03-05', 'Joao Silva',      'Pendente'),
+        (4, 'IMP-2026-001', '2026-03-10', 'Carlos Oliveira', 'Aprovada'),
+        (2, 'RR1C-2026-002','2026-03-15', 'Maria Santos',    'Pendente'),
     ]
 
     for prod_id, lote, data, resp, status in amostras_demo:

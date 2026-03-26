@@ -582,4 +582,61 @@ body {
         gap: 10px;
         text-align: center;
     }
+
+    /* Gráficos responsivos */
+    canvas {
+        max-height: 250px !important;
+    }
+}
+
+/* --- Animações de transição --- */
+
+/* Fade in ao carregar a página */
+.page-content {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Flash messages deslizam pra baixo */
+.alert {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards aparecem com fade suave */
+.card-panel {
+    animation: fadeScale 0.25s ease-out;
+}
+
+@keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Hover suave nos links da sidebar */
+.sidebar-nav a {
+    transition: all 0.2s ease;
+}
+
+/* Botões com transição suave */
+.btn-brand, .btn-outline, .badge-status {
+    transition: all 0.2s ease;
+}
+
+.btn-brand:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+}
+
+/* Linhas da tabela com fade no hover */
+.table-clean tbody tr {
+    transition: background 0.15s ease;
 }

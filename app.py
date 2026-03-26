@@ -1055,8 +1055,7 @@ def acesso_negado(e):
 
 @app.errorhandler(404)
 def pagina_nao_encontrada(e):
-    flash('Página não encontrada.', 'error')
-    return redirect(url_for('dashboard'))
+    return render_template('404.html'), 404
 
 
 @app.errorhandler(500)

@@ -47,7 +47,7 @@
 
             <li class="nav-section">LABORATÓRIO</li>
             <li>
-                <a href="{{ url_for('listar_amostras') }}" class="{% if 'amostra' in request.endpoint|default('') %}active{% endif %}">
+                <a href="{{ url_for('listar_amostras') }}" class="{% if request.endpoint and 'amostra' in request.endpoint %}active{% endif %}">
                     <i class="bi bi-droplet-fill"></i>
                     <span>Amostras</span>
                 </a>
@@ -72,7 +72,7 @@
             {% if session.get('usuario_perfil') in ['gerente', 'admin'] %}
             <li class="nav-section">ADMINISTRAÇÃO</li>
             <li>
-                <a href="{{ url_for('listar_usuarios') }}" class="{% if 'usuario' in request.endpoint|default('') and request.endpoint != 'minha_conta' %}active{% endif %}">
+                <a href="{{ url_for('listar_usuarios') }}" class="{% if request.endpoint and 'usuario' in request.endpoint and request.endpoint != 'minha_conta' %}active{% endif %}">
                     <i class="bi bi-people-fill"></i>
                     <span>Usuários</span>
                 </a>
@@ -106,7 +106,7 @@
             <div class="topbar-right" style="display: flex; align-items: center; gap: 16px;">
                 <span class="topbar-date">
                     <i class="bi bi-calendar3"></i>
-                    {{ now().strftime('%d/%m/%Y') if now is defined else '' }}
+                    <script>document.write(new Date().toLocaleDateString('pt-BR'))</script>
                 </span>
                 <button onclick="toggleTema()" class="btn-outline" style="padding: 5px 10px; font-size: 14px; border: none;" title="Alternar tema">
                     <i class="bi bi-moon-fill" id="icone-tema"></i>
