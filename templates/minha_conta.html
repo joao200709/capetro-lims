@@ -52,6 +52,7 @@
             </div>
             <div class="card-panel-body">
                 <form method="POST" style="max-width: 400px;">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Senha atual</label>
                         <input type="password" name="senha_atual" class="form-control" placeholder="Digite sua senha atual" required>

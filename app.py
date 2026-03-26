@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data
 from functools import wraps
@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 import tempfile
 import os
 import time
+import secrets
 
 app = Flask(__name__)
-# Chave hardcodada temporariamente, em producao, definir SECRET_KEY como variavel de ambiente
+# Chave hardcodada temporariamente, em producao definir SECRET_KEY como variavel de ambiente
 app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
 app.permanent_session_lifetime = timedelta(days=30)
 
@@ -85,11 +86,34 @@ def perfil_minimo(perfil_necessario):
     return decorator
 
 
+def gerar_csrf_token():
+    """Gera um token CSRF unico por sessao pra proteger formularios contra requisicoes forjadas."""
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+
+def validar_csrf():
+    """Valida o token CSRF em requisicoes POST."""
+    token = session.get('_csrf_token')
+    token_form = request.form.get('_csrf_token')
+    if not token or token != token_form:
+        abort(403)
+
+
+# Disponibiliza o token nos templates via {{ csrf_token() }}
+app.jinja_env.globals['csrf_token'] = gerar_csrf_token
+
+
 @app.before_request
 def before_request():
     if not os.path.exists('capetro_lims.db'):
         init_db()
         seed_data()
+
+    # Valida CSRF em toda requisicao POST
+    if request.method == 'POST':
+        validar_csrf()
 
 
 # --- Autenticacao ---
@@ -167,10 +191,22 @@ def login():
     return render_template('auth/login.html')
 
 
+def perfis_permitidos():
+    """Retorna os perfis que o usuario logado pode criar/editar."""
+    meu_perfil = session.get('usuario_perfil', 'tecnico')
+    if meu_perfil == 'admin':
+        return PERFIL_LABELS
+    elif meu_perfil == 'gerente':
+        return {k: v for k, v in PERFIL_LABELS.items() if k in ('tecnico', 'coordenador')}
+    return {}
+
+
 @app.route('/usuarios/novo', methods=['GET', 'POST'])
 @login_required
-@perfil_minimo('admin')
+@perfil_minimo('gerente')
 def criar_usuario():
+    perfis_disponiveis = perfis_permitidos()
+
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
         email = request.form.get('email', '').strip().lower()
@@ -181,17 +217,18 @@ def criar_usuario():
 
         if not nome or not email or not senha:
             flash('Preencha todos os campos.', 'error')
-            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=perfis_disponiveis)
 
         if senha != confirmar:
             flash('As senhas não coincidem.', 'error')
-            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=perfis_disponiveis)
 
         if len(senha) < 6:
             flash('A senha deve ter pelo menos 6 caracteres.', 'error')
-            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=perfis_disponiveis)
 
-        if perfil not in PERFIS:
+        # Gerente nao pode criar gerente ou admin
+        if perfil not in perfis_disponiveis:
             perfil = 'tecnico'
 
         cargo = PERFIL_LABELS.get(perfil, 'Técnico')
@@ -202,7 +239,7 @@ def criar_usuario():
         if existente:
             db.close()
             flash('Este e-mail já está cadastrado.', 'error')
-            return render_template('usuarios/novo.html', form=form_data, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/novo.html', form=form_data, perfil_labels=perfis_disponiveis)
 
         db.execute(
             'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil) VALUES (?, ?, ?, ?, ?)',
@@ -215,7 +252,7 @@ def criar_usuario():
         flash(f'Conta de {nome} criada com sucesso!', 'success')
         return redirect(url_for('listar_usuarios'))
 
-    return render_template('usuarios/novo.html', perfil_labels=PERFIL_LABELS)
+    return render_template('usuarios/novo.html', perfil_labels=perfis_disponiveis)
 
 
 @app.route('/logout')
@@ -669,24 +706,43 @@ def historico():
 
 @app.route('/usuarios')
 @login_required
-@perfil_minimo('admin')
+@perfil_minimo('gerente')
 def listar_usuarios():
     db = get_db()
-    usuarios = db.execute('SELECT * FROM usuarios ORDER BY nome').fetchall()
+    meu_perfil = session.get('usuario_perfil', 'tecnico')
+
+    # Gerente so ve tecnicos e coordenadores, admin ve todos
+    if meu_perfil == 'gerente':
+        usuarios = db.execute(
+            "SELECT * FROM usuarios WHERE perfil IN ('tecnico', 'coordenador') ORDER BY nome"
+        ).fetchall()
+    else:
+        usuarios = db.execute('SELECT * FROM usuarios ORDER BY nome').fetchall()
+
     db.close()
     return render_template('usuarios/lista.html', usuarios=usuarios, perfil_labels=PERFIL_LABELS)
 
 
 @app.route('/usuarios/<int:usuario_id>/editar', methods=['GET', 'POST'])
 @login_required
-@perfil_minimo('admin')
+@perfil_minimo('gerente')
 def editar_usuario(usuario_id):
     db = get_db()
+    meu_perfil = session.get('usuario_perfil', 'tecnico')
     usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
+
     if not usuario:
         db.close()
         flash('Usuário não encontrado.', 'error')
         return redirect(url_for('listar_usuarios'))
+
+    # Gerente so pode editar tecnicos e coordenadores
+    if meu_perfil == 'gerente' and usuario['perfil'] not in ('tecnico', 'coordenador'):
+        db.close()
+        flash('Você não tem permissão para editar este usuário.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    perfis_disponiveis = perfis_permitidos()
 
     if request.method == 'POST':
         nome = request.form.get('nome', '').strip()
@@ -696,19 +752,18 @@ def editar_usuario(usuario_id):
         if not nome or not email:
             flash('Preencha nome e e-mail.', 'error')
             db.close()
-            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=perfis_disponiveis)
 
-        if perfil not in PERFIS:
+        if perfil not in perfis_disponiveis:
             perfil = 'tecnico'
 
         cargo = PERFIL_LABELS.get(perfil, 'Técnico')
 
-        # Verifica se o email ja pertence a outro usuario
         existente = db.execute('SELECT id FROM usuarios WHERE email = ? AND id != ?', [email, usuario_id]).fetchone()
         if existente:
             db.close()
             flash('Este e-mail já está sendo usado por outro usuário.', 'error')
-            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+            return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=perfis_disponiveis)
 
         db.execute('UPDATE usuarios SET nome = ?, email = ?, cargo = ?, perfil = ? WHERE id = ?',
                    [nome, email, cargo, perfil, usuario_id])
@@ -726,7 +781,6 @@ def editar_usuario(usuario_id):
         db.commit()
         db.close()
 
-        # Atualiza a sessao se o admin editou a propria conta
         if usuario_id == session.get('usuario_id'):
             session['usuario_nome'] = nome
             session['usuario_cargo'] = cargo
@@ -736,18 +790,25 @@ def editar_usuario(usuario_id):
         return redirect(url_for('listar_usuarios'))
 
     db.close()
-    return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=PERFIL_LABELS)
+    return render_template('usuarios/editar.html', usuario=usuario, perfil_labels=perfis_disponiveis)
 
 
 @app.route('/usuarios/<int:usuario_id>/ativar', methods=['POST'])
 @login_required
-@perfil_minimo('admin')
+@perfil_minimo('gerente')
 def toggle_usuario(usuario_id):
     db = get_db()
+    meu_perfil = session.get('usuario_perfil', 'tecnico')
     usuario = db.execute('SELECT * FROM usuarios WHERE id = ?', [usuario_id]).fetchone()
+
     if not usuario:
         db.close()
         flash('Usuário não encontrado.', 'error')
+        return redirect(url_for('listar_usuarios'))
+
+    if meu_perfil == 'gerente' and usuario['perfil'] not in ('tecnico', 'coordenador'):
+        db.close()
+        flash('Você não tem permissão para alterar este usuário.', 'error')
         return redirect(url_for('listar_usuarios'))
 
     novo_estado = 0 if usuario['ativo'] else 1
@@ -829,6 +890,12 @@ def minha_conta():
 
 # --- Pagina de erro ---
 
+@app.errorhandler(403)
+def acesso_negado(e):
+    flash('Requisição inválida ou expirada. Tente novamente.', 'error')
+    return redirect(url_for('dashboard'))
+
+
 @app.errorhandler(404)
 def pagina_nao_encontrada(e):
     flash('Página não encontrada.', 'error')
@@ -842,4 +909,6 @@ def erro_interno(e):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Em producao, rodar com debug=False (ou usar gunicorn/waitress)
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    app.run(debug=debug, port=5000)

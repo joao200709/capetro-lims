@@ -12,6 +12,7 @@
             </div>
             <div class="card-panel-body">
                 <form method="POST">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label">Produto</label>
                         <input type="text" class="form-control" value="{{ amostra.produto_nome }}" disabled>

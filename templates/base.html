@@ -61,7 +61,7 @@
             </li>
             {% endif %}
 
-            {% if session.get('usuario_perfil') == 'admin' %}
+            {% if session.get('usuario_perfil') in ['gerente', 'admin'] %}
             <li class="nav-section">ADMINISTRAÇÃO</li>
             <li>
                 <a href="{{ url_for('listar_usuarios') }}" class="{% if 'usuario' in request.endpoint|default('') and request.endpoint != 'minha_conta' %}active{% endif %}">

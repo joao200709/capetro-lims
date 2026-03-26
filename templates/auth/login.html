@@ -126,6 +126,7 @@
             {% endwith %}
 
             <form method="POST">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label class="form-label">E-mail</label>
                     <div class="input-group">

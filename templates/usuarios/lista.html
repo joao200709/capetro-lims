@@ -44,6 +44,7 @@
                                 <i class="bi bi-pencil"></i> Editar
                             </a>
                             <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}" style="display:inline;">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 {% if u.ativo %}
                                 <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--warning);"
                                         onclick="return confirm('Desativar {{ u.nome }}?');">
@@ -55,12 +56,15 @@
                                 </button>
                                 {% endif %}
                             </form>
+                            {% if session.get('usuario_perfil') == 'admin' %}
                             <form method="POST" action="{{ url_for('excluir_usuario', usuario_id=u.id) }}" style="display:inline;">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--danger);"
                                         onclick="return confirm('EXCLUIR permanentemente a conta de {{ u.nome }}? Essa ação não pode ser desfeita.');">
                                     <i class="bi bi-trash"></i> Excluir
                                 </button>
                             </form>
+                            {% endif %}
                         </div>
                         {% else %}
                         <span style="font-size: 12px; color: var(--text-secondary);">Você</span>

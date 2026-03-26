@@ -82,6 +82,7 @@
                             {% if session.get('usuario_perfil') in ['coordenador', 'gerente', 'admin'] %}
                             <form method="POST" action="{{ url_for('excluir_amostra', amostra_id=a.id) }}" style="display:inline;"
                                   onsubmit="return confirm('Tem certeza que deseja excluir esta amostra?');">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: var(--danger);">
                                     <i class="bi bi-trash"></i>
                                 </button>
