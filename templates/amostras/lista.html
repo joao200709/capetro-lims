@@ -66,7 +66,7 @@
                     <td><strong>#{{ a.id }}</strong></td>
                     <td>{{ a.produto }}</td>
                     <td><code>{{ a.numero_lote }}</code></td>
-                    <td>{{ a.data_coleta }}</td>
+                    <td>{{ a.data_coleta|data_br }}</td>
                     <td>{{ a.responsavel }}</td>
                     <td>
                         <span class="badge-status {{ a.status|lower }}">{{ a.status }}</span>

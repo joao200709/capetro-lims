@@ -31,7 +31,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold" style="color: var(--text-secondary);">Conta criada em</label>
-                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.criado_em or '-' }}</div>
+                        <div style="font-size: 15px; padding: 9px 0;">{{ usuario.criado_em|data_br }}</div>
                     </div>
                 </div>
                 {% if session.get('usuario_perfil') != 'admin' %}

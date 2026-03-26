@@ -1,90 +1,172 @@
-import sqlite3
-import random
 import os
+import random
+import psycopg2
+import psycopg2.extras
 from werkzeug.security import generate_password_hash
 
-DATABASE = 'capetro_lims.db'
+# Senha hardcodada temporariamente, em producao usar variavel de ambiente
+DATABASE_URL = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://postgres:unicompra@localhost:5432/capetro-lims'
+)
+
+
+class DictRow:
+    """Permite acesso por nome (row['col']) e por indice (row[0])."""
+    def __init__(self, data):
+        self._dict = dict(data)
+        self._values = list(data.values())
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return self._dict[key]
+
+    def __contains__(self, key):
+        return key in self._dict
+
+    def keys(self):
+        return self._dict.keys()
+
+    def __bool__(self):
+        return True
+
+
+class CursorWrapper:
+    """Compatibiliza o cursor do psycopg2 com a interface que o app espera."""
+    def __init__(self, cursor, lastrowid=None):
+        self._cursor = cursor
+        self.lastrowid = lastrowid
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return DictRow(row)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        return [DictRow(r) for r in rows]
+
+
+class DBWrapper:
+    """Interface para o PostgreSQL compativel com o resto do app."""
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, query, params=None):
+        params = params or []
+
+        # Converte placeholder do SQLite pro PostgreSQL
+        query = query.replace('?', '%s')
+
+        # Adiciona RETURNING id em INSERTs pra capturar o id gerado
+        is_insert = query.strip().upper().startswith('INSERT')
+        if is_insert and 'RETURNING' not in query.upper():
+            query = query.rstrip().rstrip(';') + ' RETURNING id'
+
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+
+        lastrowid = None
+        if is_insert:
+            try:
+                result = cursor.fetchone()
+                if result:
+                    lastrowid = result.get('id') if isinstance(result, dict) else result[0]
+            except Exception:
+                pass
+
+        return CursorWrapper(cursor, lastrowid)
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
 
 
 def get_db():
-    db = sqlite3.connect(DATABASE)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA foreign_keys = ON")
-    return db
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    return DBWrapper(conn)
+
+
+def db_needs_init():
+    """Verifica se as tabelas ja existem no banco."""
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute("SELECT EXISTS(SELECT FROM information_schema.tables WHERE table_name = 'produtos')")
+    exists = cursor.fetchone()[0]
+    conn.close()
+    return not exists
 
 
 def init_db():
-    db = get_db()
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor()
 
-    db.executescript('''
-        CREATE TABLE IF NOT EXISTS produtos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tables = [
+        '''CREATE TABLE IF NOT EXISTS produtos (
+            id SERIAL PRIMARY KEY,
             nome TEXT NOT NULL,
             descricao TEXT,
             tipo TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS parametros_ensaio (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            produto_id INTEGER NOT NULL,
+        )''',
+        '''CREATE TABLE IF NOT EXISTS parametros_ensaio (
+            id SERIAL PRIMARY KEY,
+            produto_id INTEGER NOT NULL REFERENCES produtos(id),
             nome_parametro TEXT NOT NULL,
             unidade TEXT,
             valor_minimo REAL,
             valor_maximo REAL,
-            metodo_ensaio TEXT,
-            FOREIGN KEY (produto_id) REFERENCES produtos(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS amostras (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            produto_id INTEGER NOT NULL,
+            metodo_ensaio TEXT
+        )''',
+        '''CREATE TABLE IF NOT EXISTS amostras (
+            id SERIAL PRIMARY KEY,
+            produto_id INTEGER NOT NULL REFERENCES produtos(id),
             numero_lote TEXT NOT NULL,
             data_coleta TEXT NOT NULL,
             responsavel TEXT NOT NULL,
             status TEXT DEFAULT 'Pendente',
-            observacoes TEXT,
-            FOREIGN KEY (produto_id) REFERENCES produtos(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS resultados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            amostra_id INTEGER NOT NULL,
-            parametro_id INTEGER NOT NULL,
+            observacoes TEXT
+        )''',
+        '''CREATE TABLE IF NOT EXISTS resultados (
+            id SERIAL PRIMARY KEY,
+            amostra_id INTEGER NOT NULL REFERENCES amostras(id),
+            parametro_id INTEGER NOT NULL REFERENCES parametros_ensaio(id),
             valor_obtido REAL,
             conforme INTEGER,
             data_ensaio TEXT,
-            tecnico TEXT,
-            FOREIGN KEY (amostra_id) REFERENCES amostras(id),
-            FOREIGN KEY (parametro_id) REFERENCES parametros_ensaio(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tecnico TEXT
+        )''',
+        '''CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
             nome TEXT NOT NULL,
             email TEXT NOT NULL UNIQUE,
             senha_hash TEXT NOT NULL,
             cargo TEXT DEFAULT 'Tecnico',
             perfil TEXT DEFAULT 'tecnico',
             ativo INTEGER DEFAULT 1,
-            criado_em TEXT DEFAULT (datetime('now', 'localtime'))
-        );
-
-        CREATE TABLE IF NOT EXISTS historico (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER,
+            criado_em TIMESTAMP DEFAULT NOW()
+        )''',
+        '''CREATE TABLE IF NOT EXISTS historico (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER REFERENCES usuarios(id),
             usuario_nome TEXT NOT NULL,
             acao TEXT NOT NULL,
             entidade TEXT NOT NULL,
             entidade_id INTEGER,
             detalhes TEXT,
-            data_hora TEXT DEFAULT (datetime('now', 'localtime')),
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-        );
-    ''')
+            data_hora TIMESTAMP DEFAULT NOW()
+        )''',
+    ]
 
-    db.commit()
-    db.close()
-    print("[OK] Banco de dados criado.")
+    for sql in tables:
+        cursor.execute(sql)
+
+    conn.commit()
+    conn.close()
+    print("[OK] Banco de dados criado no PostgreSQL.")
 
 
 def _inserir_parametros(db, produto_id, parametros):
@@ -100,7 +182,6 @@ def seed_data():
     """Popula o banco com produtos, parametros DNIT, amostras de exemplo e usuario admin."""
     db = get_db()
 
-    # Produtos
     produtos = [
         ('CAPETRO PLUS 50/70', 'Cimento Asfaltico de Petroleo com penetracao 50-70', 'CAP'),
         ('CAPETRO Emulsao RR-1C', 'Emulsao Asfaltica Cationica de Ruptura Rapida RR-1C', 'Emulsao'),
@@ -112,7 +193,6 @@ def seed_data():
         db.execute('INSERT INTO produtos (nome, descricao, tipo) VALUES (?, ?, ?)', [nome, descricao, tipo])
     db.commit()
 
-    # Parametros de ensaio por produto (normas DNIT)
     _inserir_parametros(db, 1, [
         ('Penetracao (25C, 100g, 5s)',     '0,1 mm', 50.0,  70.0,  'DNIT-ME 155'),
         ('Ponto de Amolecimento',           'C',      46.0,  None,  'DNIT-ME 131'),
@@ -153,7 +233,6 @@ def seed_data():
         ('Residuo por Destilacao',         '%',  None, None, 'DNIT-ME 003'),
     ])
 
-    # Amostras de demonstracao com resultados ficticios
     amostras_demo = [
         (1, 'CAP-2025-001', '2025-03-10', 'Joao Silva',      'Aprovada'),
         (1, 'CAP-2025-002', '2025-03-12', 'Joao Silva',      'Aprovada'),
@@ -184,7 +263,6 @@ def seed_data():
                 ''', [amostra_id, param['id']])
                 continue
 
-            # Gera valores ficticios dentro ou fora da faixa dependendo do status
             vmin = param['valor_minimo'] or 0
             vmax = param['valor_maximo'] or (vmin * 2 if vmin else 100)
 
@@ -203,7 +281,6 @@ def seed_data():
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', [amostra_id, param['id'], valor, conforme, data, resp])
 
-    # Usuario admin padrao
     db.execute(
         'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil) VALUES (?, ?, ?, ?, ?)',
         ['Administrador', 'admin@capetro.com', generate_password_hash('admin123'), 'Administrador', 'admin']
@@ -216,9 +293,14 @@ def seed_data():
 
 
 if __name__ == '__main__':
-    if os.path.exists(DATABASE):
-        os.remove(DATABASE)
-        print("Banco antigo removido.")
+    # Limpa tabelas existentes e recria
+    conn = psycopg2.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('DROP TABLE IF EXISTS historico, resultados, amostras, parametros_ensaio, produtos, usuarios CASCADE')
+    conn.commit()
+    conn.close()
+    print("Tabelas antigas removidas.")
+
     init_db()
     seed_data()
     print("Pronto!")

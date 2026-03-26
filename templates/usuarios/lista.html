@@ -36,7 +36,7 @@
                             <span class="badge-nconforme">Inativo</span>
                         {% endif %}
                     </td>
-                    <td style="font-size: 13px;">{{ u.criado_em or '-' }}</td>
+                    <td style="font-size: 13px;">{{ u.criado_em|data_br }}</td>
                     <td>
                         {% if u.id != session.get('usuario_id') %}
                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">

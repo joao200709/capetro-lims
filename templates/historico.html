@@ -23,7 +23,7 @@
             <tbody>
                 {% for r in registros %}
                 <tr>
-                    <td style="white-space: nowrap;">{{ r.data_hora }}</td>
+                    <td style="white-space: nowrap;">{{ r.data_hora|data_br }}</td>
                     <td>{{ r.usuario_nome }}</td>
                     <td>
                         {% if 'Criou' in r.acao %}

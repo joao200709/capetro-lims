@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from werkzeug.security import generate_password_hash, check_password_hash
-from database import get_db, init_db, seed_data
+from database import get_db, init_db, seed_data, db_needs_init
 from functools import wraps
 from datetime import datetime, timedelta
 import tempfile
@@ -12,6 +12,7 @@ app = Flask(__name__)
 # Chave hardcodada temporariamente, em producao definir SECRET_KEY como variavel de ambiente
 app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
 app.permanent_session_lifetime = timedelta(days=30)
+TIMEOUT_INATIVIDADE = 30  # minutos
 
 # Rate limiting: rastreia tentativas de login por IP
 # Formato: {ip: {'tentativas': int, 'bloqueado_ate': timestamp}}
@@ -105,13 +106,43 @@ def validar_csrf():
 app.jinja_env.globals['csrf_token'] = gerar_csrf_token
 
 
+@app.template_filter('data_br')
+def filtro_data_br(valor):
+    """Converte '2025-03-10' pra '10/03/2025' e timestamps pra 'dd/mm/aaaa HH:MM'."""
+    if not valor:
+        return '-'
+    valor = str(valor)
+    try:
+        if len(valor) > 10:
+            dt = datetime.strptime(valor[:19], '%Y-%m-%d %H:%M:%S')
+            return dt.strftime('%d/%m/%Y %H:%M')
+        dt = datetime.strptime(valor[:10], '%Y-%m-%d')
+        return dt.strftime('%d/%m/%Y')
+    except (ValueError, TypeError):
+        return valor
+
+
+_db_initialized = False
+
 @app.before_request
 def before_request():
-    if not os.path.exists('capetro_lims.db'):
-        init_db()
-        seed_data()
+    global _db_initialized
+    if not _db_initialized:
+        if db_needs_init():
+            init_db()
+            seed_data()
+        _db_initialized = True
 
-    # Valida CSRF em toda requisicao POST
+    # Timeout por inatividade
+    if 'usuario_id' in session and request.endpoint not in ('login', 'logout', 'static'):
+        ultima = session.get('ultima_atividade')
+        agora = time.time()
+        if ultima and (agora - ultima) > TIMEOUT_INATIVIDADE * 60:
+            session.clear()
+            flash('Sessão expirada por inatividade. Faça login novamente.', 'error')
+            return redirect(url_for('login'))
+        session['ultima_atividade'] = agora
+
     if request.method == 'POST':
         validar_csrf()
 
@@ -171,6 +202,7 @@ def login():
             session['usuario_nome'] = usuario['nome']
             session['usuario_cargo'] = usuario['cargo']
             session['usuario_perfil'] = usuario['perfil'] if 'perfil' in usuario.keys() else 'tecnico'
+            session['ultima_atividade'] = time.time()
             flash(f'Bem-vindo, {usuario["nome"]}!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -274,15 +306,15 @@ def dashboard():
     params_data = []
 
     if periodo == '7d':
-        filtro_data = " AND a.data_coleta >= date('now', '-7 days')"
+        filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '7 days')::text"
     elif periodo == '30d':
-        filtro_data = " AND a.data_coleta >= date('now', '-30 days')"
+        filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '30 days')::text"
     elif periodo == '90d':
-        filtro_data = " AND a.data_coleta >= date('now', '-90 days')"
+        filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '90 days')::text"
     elif periodo == '6m':
-        filtro_data = " AND a.data_coleta >= date('now', '-6 months')"
+        filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '6 months')::text"
     elif periodo == '1a':
-        filtro_data = " AND a.data_coleta >= date('now', '-1 year')"
+        filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '1 year')::text"
     elif periodo == 'custom':
         data_inicio = request.args.get('data_inicio', '')
         data_fim = request.args.get('data_fim', '')

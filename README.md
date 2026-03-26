@@ -4,7 +4,7 @@ Sistema de gestão laboratorial da Capetro. Controla amostras, ensaios e laudos 
 
 ## Como rodar
 
-Precisa de **Python 3.10+** instalado.
+Precisa de **Python 3.10+** e **PostgreSQL** instalados.
 
 ```bash
 # Instale as dependências
@@ -54,7 +54,7 @@ capetro-lims/
 
 ## Tecnologias
 
-Flask, SQLite, Bootstrap 5, Chart.js, WeasyPrint
+Flask, PostgreSQL, Bootstrap 5, Chart.js, WeasyPrint
 
 ---
 
