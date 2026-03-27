@@ -34,32 +34,39 @@
 
 <!-- MÉTRICAS -->
 <div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg">
         <div class="metric-card">
             <div class="metric-icon blue"><i class="bi bi-droplet-fill"></i></div>
             <div class="metric-value">{{ total_amostras }}</div>
             <div class="metric-label">Total de Amostras</div>
         </div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg">
         <div class="metric-card">
             <div class="metric-icon green"><i class="bi bi-check-circle-fill"></i></div>
             <div class="metric-value">{{ aprovadas }}</div>
             <div class="metric-label">Aprovadas</div>
         </div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg">
         <div class="metric-card">
             <div class="metric-icon red"><i class="bi bi-x-circle-fill"></i></div>
             <div class="metric-value">{{ reprovadas }}</div>
             <div class="metric-label">Reprovadas</div>
         </div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg">
         <div class="metric-card">
             <div class="metric-icon amber"><i class="bi bi-hourglass-split"></i></div>
             <div class="metric-value">{{ pendentes }}</div>
             <div class="metric-label">Pendentes</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="metric-card">
+            <div class="metric-icon" style="color: #1e40af;"><i class="bi bi-search"></i></div>
+            <div class="metric-value">{{ em_revisao }}</div>
+            <div class="metric-label">Em Revisão</div>
         </div>
     </div>
 </div>
@@ -147,7 +154,7 @@
                             <td><code>{{ a.numero_lote }}</code></td>
                             <td>{{ a.data_coleta|data_br }}</td>
                             <td>
-                                <span class="badge-status {{ a.status|lower }}">
+                                <span class="badge-status {{ a.status|status_class }}">
                                     {{ a.status }}
                                 </span>
                             </td>

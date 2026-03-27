@@ -8,7 +8,7 @@
 <div class="card-panel mb-4">
     <div class="card-panel-header">
         <h3><i class="bi bi-droplet-fill"></i> {{ amostra.produto_nome }}</h3>
-        <span class="badge-status {{ amostra.status|lower }}">{{ amostra.status }}</span>
+        <span class="badge-status {{ amostra.status|status_class }}">{{ amostra.status }}</span>
     </div>
     <div class="card-panel-body">
         <div class="row g-3">
@@ -31,6 +31,28 @@
                     <a href="{{ url_for('registrar_ensaios', amostra_id=amostra.id) }}" class="btn-brand" style="padding: 6px 14px; font-size: 13px;">
                         <i class="bi bi-pencil-square"></i> Registrar Ensaios
                     </a>
+                    {% elif amostra.status == 'Em Revisão' %}
+                    <a href="{{ url_for('gerar_laudo', amostra_id=amostra.id) }}" class="btn-outline" style="padding: 6px 14px; font-size: 13px;" target="_blank">
+                        <i class="bi bi-file-earmark-pdf"></i> Pré-visualizar Laudo
+                    </a>
+                    {% if session.get('usuario_perfil') in ['coordenador', 'gerente', 'admin'] %}
+                    <form method="POST" action="{{ url_for('revisar_laudo', amostra_id=amostra.id) }}" style="display:inline;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="decisao" value="aprovar">
+                        <button type="submit" class="btn-brand" style="padding: 6px 14px; font-size: 13px; background: #065f46;"
+                                onclick="return confirm('Aprovar este laudo?');">
+                            <i class="bi bi-check-lg"></i> Aprovar
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('revisar_laudo', amostra_id=amostra.id) }}" style="display:inline;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="decisao" value="reprovar">
+                        <button type="submit" class="btn-outline" style="padding: 6px 14px; font-size: 13px; color: #991b1b; border-color: #991b1b;"
+                                onclick="return confirm('Reprovar este laudo?');">
+                            <i class="bi bi-x-lg"></i> Reprovar
+                        </button>
+                    </form>
+                    {% endif %}
                     {% else %}
                     <a href="{{ url_for('gerar_laudo', amostra_id=amostra.id) }}" class="btn-brand" style="padding: 6px 14px; font-size: 13px;" target="_blank">
                         <i class="bi bi-file-earmark-pdf"></i> Ver Laudo

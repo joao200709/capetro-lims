@@ -61,6 +61,7 @@
         }
         .status-badge.aprovada { background: #d1fae5; color: #065f46; }
         .status-badge.reprovada { background: #fee2e2; color: #991b1b; }
+        .status-badge.em-revisao { background: #dbeafe; color: #1e40af; }
 
         /* Table */
         .results-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
@@ -155,10 +156,18 @@
 
             <dt>Resultado</dt>
             <dd>
-                <span class="status-badge {{ amostra.status|lower }}">
+                <span class="status-badge {{ amostra.status|status_class }}">
                     {{ amostra.status|upper }}
                 </span>
             </dd>
+
+            {% if amostra.revisado_por %}
+            <dt>Revisado por</dt>
+            <dd>{{ amostra.revisado_por }}</dd>
+
+            <dt>Data da Revisão</dt>
+            <dd>{{ amostra.data_revisao|data_br }}</dd>
+            {% endif %}
         </dl>
 
         <!-- TABELA DE RESULTADOS -->

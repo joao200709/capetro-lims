@@ -77,6 +77,12 @@
                     <span>Usuários</span>
                 </a>
             </li>
+            <li>
+                <a href="{{ url_for('pagina_backups') }}" class="{% if request.endpoint and 'backup' in request.endpoint %}active{% endif %}">
+                    <i class="bi bi-database-down"></i>
+                    <span>Backups</span>
+                </a>
+            </li>
             {% endif %}
 
             <li class="nav-section">CONTA</li>
@@ -112,7 +118,7 @@
                     <i class="bi bi-moon-fill" id="icone-tema"></i>
                 </button>
                 {% if session.get('usuario_nome') %}
-                <!-- Sininho de notificacoes -->
+                <!-- Sininho de notificações -->
                 <div class="notif-wrapper" style="position: relative;">
                     <button class="btn-outline" style="padding: 5px 10px; font-size: 14px; border: none; position: relative; cursor: pointer;" title="Notificações">
                         <i class="bi bi-bell-fill"></i>
@@ -132,6 +138,8 @@
                             <a href="{{ n.url }}" style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; text-decoration: none; color: var(--text-primary); border-bottom: 1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
                                 {% if n.tipo == 'reprovada' %}
                                 <span style="color: var(--danger); font-size: 18px; margin-top: 2px;"><i class="bi bi-x-circle-fill"></i></span>
+                                {% elif n.tipo == 'revisao' %}
+                                <span style="color: #1e40af; font-size: 18px; margin-top: 2px;"><i class="bi bi-search"></i></span>
                                 {% else %}
                                 <span style="color: var(--warning, #f59e0b); font-size: 18px; margin-top: 2px;"><i class="bi bi-hourglass-split"></i></span>
                                 {% endif %}
@@ -227,5 +235,27 @@
     </script>
 
     {% block scripts %}{% endblock %}
+
+    {% if session.get('usuario_id') %}
+    <script>
+    (function() {
+        var TIMEOUT_MIN = {{ TIMEOUT_INATIVIDADE }};
+        var timeout;
+
+        function resetTimer() {
+            clearTimeout(timeout);
+            timeout = setTimeout(function() {
+                window.location.href = '{{ url_for("logout") }}?motivo=inatividade';
+            }, TIMEOUT_MIN * 60 * 1000);
+        }
+
+        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+            document.addEventListener(evt, resetTimer, { passive: true });
+        });
+
+        resetTimer();
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

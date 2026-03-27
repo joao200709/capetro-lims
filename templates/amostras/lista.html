@@ -22,6 +22,7 @@
                 <select name="status" class="form-select">
                     <option value="">Todos</option>
                     <option value="Pendente" {% if filtro_status == 'Pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="Em Revisão" {% if filtro_status == 'Em Revisão' %}selected{% endif %}>Em Revisão</option>
                     <option value="Aprovada" {% if filtro_status == 'Aprovada' %}selected{% endif %}>Aprovada</option>
                     <option value="Reprovada" {% if filtro_status == 'Reprovada' %}selected{% endif %}>Reprovada</option>
                 </select>
@@ -69,7 +70,7 @@
                     <td>{{ a.data_coleta|data_br }}</td>
                     <td>{{ a.responsavel }}</td>
                     <td>
-                        <span class="badge-status {{ a.status|lower }}">{{ a.status }}</span>
+                        <span class="badge-status {{ a.status|status_class }}">{{ a.status }}</span>
                     </td>
                     <td>
                         <div class="d-flex gap-1">
@@ -102,7 +103,7 @@
         </table>
     </div>
 
-    <!-- PAGINACAO -->
+    <!-- PAGINAÇÃO -->
     {% if total_paginas > 1 %}
     <div class="card-panel-body" style="border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <span style="font-size: 13px; color: var(--text-secondary);">

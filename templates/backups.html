@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Backups{% endblock %}
+{% block page_title %}Backups do Banco de Dados{% endblock %}
+
+{% block content %}
+<div class="card-panel mb-4">
+    <div class="card-panel-header">
+        <h3><i class="bi bi-shield-check"></i> Backup Manual</h3>
+    </div>
+    <div class="card-panel-body">
+        <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+            O sistema realiza backups automáticos a cada 24 horas. Você também pode criar um backup manual a qualquer momento.
+        </p>
+        <form method="POST" action="{{ url_for('criar_backup') }}" style="display: inline;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-brand" onclick="this.disabled=true; this.innerHTML='<i class=\'bi bi-hourglass-split\'></i> Criando backup...'; this.form.submit();">
+                <i class="bi bi-download"></i> Criar Backup Agora
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card-panel">
+    <div class="card-panel-header">
+        <h3><i class="bi bi-archive"></i> Backups Disponíveis</h3>
+        <span style="font-size: 13px; color: var(--text-secondary);">Últimos {{ backups|length }} backup{{ 's' if backups|length != 1 }}</span>
+    </div>
+    <div class="card-panel-body p-0">
+        <table class="table-clean">
+            <thead>
+                <tr>
+                    <th>Arquivo</th>
+                    <th>Data</th>
+                    <th>Tamanho</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in backups %}
+                <tr>
+                    <td><code>{{ b.nome }}</code></td>
+                    <td>{{ b.data }}</td>
+                    <td>{{ b.tamanho_kb }} KB</td>
+                    <td>
+                        <a href="{{ url_for('download_backup', nome=b.nome) }}" class="btn-outline" style="padding: 4px 10px; font-size: 12px;">
+                            <i class="bi bi-download"></i> Baixar
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-muted">
+                        Nenhum backup encontrado. Clique em "Criar Backup Agora" para gerar o primeiro.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ url_for('dashboard') }}" class="btn-outline">
+        <i class="bi bi-arrow-left"></i> Voltar para o Dashboard
+    </a>
+</div>
+{% endblock %}

@@ -128,7 +128,9 @@ def init_db():
             data_coleta TEXT NOT NULL,
             responsavel TEXT NOT NULL,
             status TEXT DEFAULT 'Pendente',
-            observacoes TEXT
+            observacoes TEXT,
+            revisado_por TEXT,
+            data_revisao TEXT
         )''',
         '''CREATE TABLE IF NOT EXISTS resultados (
             id SERIAL PRIMARY KEY,
@@ -162,6 +164,14 @@ def init_db():
     ]
 
     for sql in tables:
+        cursor.execute(sql)
+
+    # Migração: adicionar colunas de revisão se não existirem
+    migrations = [
+        "ALTER TABLE amostras ADD COLUMN IF NOT EXISTS revisado_por TEXT",
+        "ALTER TABLE amostras ADD COLUMN IF NOT EXISTS data_revisao TEXT",
+    ]
+    for sql in migrations:
         cursor.execute(sql)
 
     conn.commit()

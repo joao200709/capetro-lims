@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data, db_needs_init
+from backup import fazer_backup, listar_backups
 from functools import wraps
 from datetime import datetime, timedelta
+import threading
 import tempfile
 import os
 import time
@@ -132,6 +134,17 @@ def filtro_data_br(valor):
         return valor
 
 
+@app.template_filter('status_class')
+def filtro_status_class(valor):
+    """Converte status para classe CSS (ex: 'Em Revisão' -> 'em-revisao')."""
+    if not valor:
+        return ''
+    import unicodedata
+    s = unicodedata.normalize('NFD', valor.lower())
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    return s.replace(' ', '-')
+
+
 DIAS_PENDENTE_ALERTA = 7
 
 
@@ -185,10 +198,28 @@ def injetar_notificacoes():
                 'url': f'/amostras/{p["id"]}'
             })
 
+        # Amostras aguardando revisão do coordenador
+        em_revisao = db.execute('''
+            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
+            FROM amostras a
+            JOIN produtos p ON a.produto_id = p.id
+            WHERE a.status = 'Em Revisão'
+            ORDER BY a.data_coleta ASC
+            LIMIT 10
+        ''').fetchall()
+
+        for r in em_revisao:
+            notificacoes.append({
+                'tipo': 'revisao',
+                'texto': f'{r["produto"]} — Lote {r["numero_lote"]} aguardando revisão',
+                'data': r['data_coleta'],
+                'url': f'/amostras/{r["id"]}'
+            })
+
         db.close()
-        return {'notificacoes': notificacoes, 'total_notificacoes': len(notificacoes)}
+        return {'notificacoes': notificacoes, 'total_notificacoes': len(notificacoes), 'TIMEOUT_INATIVIDADE': TIMEOUT_INATIVIDADE}
     except Exception:
-        return {'notificacoes': [], 'total_notificacoes': 0}
+        return {'notificacoes': [], 'total_notificacoes': 0, 'TIMEOUT_INATIVIDADE': TIMEOUT_INATIVIDADE}
 
 
 _db_initialized = False
@@ -202,15 +233,17 @@ def before_request():
             seed_data()
         _db_initialized = True
 
-    # Timeout por inatividade
+    # Timeout por inatividade (server-side apenas para sessões não-permanentes)
+    # Sessões permanentes ("lembrar de mim") usam timeout via JavaScript no navegador
     if 'usuario_id' in session and request.endpoint not in ('login', 'logout', 'static'):
-        ultima = session.get('ultima_atividade')
-        agora = time.time()
-        if ultima and (agora - ultima) > TIMEOUT_INATIVIDADE * 60:
-            session.clear()
-            flash('Sessão expirada por inatividade. Faça login novamente.', 'error')
-            return redirect(url_for('login'))
-        session['ultima_atividade'] = agora
+        if not session.permanent:
+            ultima = session.get('ultima_atividade')
+            agora = time.time()
+            if ultima and (agora - ultima) > TIMEOUT_INATIVIDADE * 60:
+                session.clear()
+                flash('Sessão expirada por inatividade. Faça login novamente.', 'error')
+                return redirect(url_for('login'))
+            session['ultima_atividade'] = agora
 
     if request.method == 'POST':
         validar_csrf()
@@ -359,7 +392,10 @@ def criar_usuario():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Você saiu do sistema.', 'success')
+    if request.args.get('motivo') == 'inatividade':
+        flash('Sessão expirada por inatividade. Faça login novamente.', 'error')
+    else:
+        flash('Você saiu do sistema.', 'success')
     return redirect(url_for('login'))
 
 
@@ -402,6 +438,9 @@ def dashboard():
     ).fetchone()[0]
     pendentes = db.execute(
         f"SELECT COUNT(*) FROM amostras a WHERE status = 'Pendente'{filtro_data}", params_data
+    ).fetchone()[0]
+    em_revisao = db.execute(
+        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Em Revisão'{filtro_data}", params_data
     ).fetchone()[0]
 
     total_finalizadas = aprovadas + reprovadas
@@ -453,6 +492,7 @@ def dashboard():
         aprovadas=aprovadas,
         reprovadas=reprovadas,
         pendentes=pendentes,
+        em_revisao=em_revisao,
         taxa_conformidade=taxa_conformidade,
         ultimas_amostras=ultimas_amostras,
         amostras_por_produto=amostras_por_produto,
@@ -718,14 +758,13 @@ def registrar_ensaios(amostra_id):
                     WHERE id = ?
                 ''', [valor, conforme, data_ensaio, tecnico, resultado['id']])
 
-        novo_status = 'Aprovada' if todos_conformes else 'Reprovada'
-        db.execute('UPDATE amostras SET status = ? WHERE id = ?', [novo_status, amostra_id])
-        registrar_historico(db, 'Registrou ensaios', 'Amostra', amostra_id, f'Status: {novo_status}')
+        db.execute('UPDATE amostras SET status = ? WHERE id = ?', ['Em Revisão', amostra_id])
+        registrar_historico(db, 'Registrou ensaios', 'Amostra', amostra_id, 'Aguardando revisão do coordenador')
 
         db.commit()
         db.close()
 
-        flash(f'Ensaios registrados! Amostra {novo_status.lower()}.', 'success')
+        flash('Ensaios registrados! Aguardando revisão do coordenador.', 'success')
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
     resultados = buscar_resultados(db, amostra_id)
@@ -735,6 +774,50 @@ def registrar_ensaios(amostra_id):
         amostra=amostra,
         resultados=resultados
     )
+
+
+# --- Revisão de Laudos ---
+
+@app.route('/laudos/<int:amostra_id>/revisar', methods=['POST'])
+@login_required
+def revisar_laudo(amostra_id):
+    if session.get('usuario_perfil') not in ['coordenador', 'gerente', 'admin']:
+        flash('Apenas coordenadores, gerentes ou administradores podem revisar laudos.', 'error')
+        return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
+
+    decisao = request.form.get('decisao')
+    if decisao not in ['aprovar', 'reprovar']:
+        flash('Decisão inválida.', 'error')
+        return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
+
+    db = get_db()
+    amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
+    if redir:
+        db.close()
+        return redir
+
+    if amostra['status'] != 'Em Revisão':
+        flash('Esta amostra não está em revisão.', 'error')
+        db.close()
+        return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
+
+    novo_status = 'Aprovada' if decisao == 'aprovar' else 'Reprovada'
+    revisor = session.get('usuario_nome')
+    data_revisao = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    db.execute('''
+        UPDATE amostras SET status = ?, revisado_por = ?, data_revisao = ?
+        WHERE id = ?
+    ''', [novo_status, revisor, data_revisao, amostra_id])
+
+    registrar_historico(db, f'Revisou laudo ({novo_status})', 'Amostra', amostra_id,
+                        f'Revisado por {revisor}')
+
+    db.commit()
+    db.close()
+
+    flash(f'Laudo {novo_status.lower()} por {revisor}.', 'success')
+    return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
 
 # --- Laudos ---
@@ -1064,7 +1147,87 @@ def erro_interno(e):
     return redirect(url_for('dashboard'))
 
 
+# --- Backups ---
+
+@app.route('/backups')
+@login_required
+def pagina_backups():
+    if session.get('usuario_perfil') != 'admin':
+        flash('Apenas administradores podem acessar os backups.', 'error')
+        return redirect(url_for('dashboard'))
+
+    backups = listar_backups()
+    return render_template('backups.html', backups=backups)
+
+
+@app.route('/backups/criar', methods=['POST'])
+@login_required
+def criar_backup():
+    if session.get('usuario_perfil') != 'admin':
+        flash('Apenas administradores podem criar backups.', 'error')
+        return redirect(url_for('dashboard'))
+
+    sucesso, resultado = fazer_backup()
+    if sucesso:
+        db = get_db()
+        registrar_historico(db, 'Criou backup', 'Sistema', detalhes=os.path.basename(resultado))
+        db.commit()
+        db.close()
+        flash('Backup criado com sucesso!', 'success')
+    else:
+        flash(f'Falha ao criar backup: {resultado}', 'error')
+
+    return redirect(url_for('pagina_backups'))
+
+
+@app.route('/backups/download/<nome>')
+@login_required
+def download_backup(nome):
+    if session.get('usuario_perfil') != 'admin':
+        flash('Apenas administradores podem baixar backups.', 'error')
+        return redirect(url_for('dashboard'))
+
+    # Proteger contra path traversal
+    if '/' in nome or '\\' in nome or '..' in nome:
+        abort(404)
+
+    from backup import BACKUP_DIR
+    caminho = os.path.join(BACKUP_DIR, nome)
+    if not os.path.isfile(caminho):
+        flash('Backup não encontrado.', 'error')
+        return redirect(url_for('pagina_backups'))
+
+    return send_file(caminho, as_attachment=True, download_name=nome)
+
+
+# --- Backup automático diário ---
+
+def _agendar_backup_diario():
+    """Executa backup e reagenda para daqui 24h."""
+    sucesso, resultado = fazer_backup()
+    if sucesso:
+        print(f'[BACKUP] Backup automático salvo: {os.path.basename(resultado)}')
+    else:
+        print(f'[BACKUP] Falha no backup automático: {resultado}')
+
+    # Reagendar para daqui 24h
+    timer = threading.Timer(86400, _agendar_backup_diario)
+    timer.daemon = True
+    timer.start()
+
+
+def iniciar_backup_agendado():
+    """Inicia o primeiro backup após 60s e depois repete a cada 24h."""
+    timer = threading.Timer(60, _agendar_backup_diario)
+    timer.daemon = True
+    timer.start()
+    print('[BACKUP] Backup automático agendado (a cada 24h)')
+
+
 if __name__ == '__main__':
     # Em producao, rodar com debug=False (ou usar gunicorn/waitress)
     debug = os.environ.get('FLASK_ENV') != 'production'
+    # Iniciar backup agendado apenas no processo principal (evitar duplicata no reloader)
+    if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        iniciar_backup_agendado()
     app.run(debug=debug, port=5000)
