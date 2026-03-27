@@ -44,13 +44,22 @@ capetro-lims/
 
 ## O que o sistema faz
 
-- Dashboard com métricas e gráficos
-- Cadastro e filtro de amostras
-- Registro de ensaios com verificação automática de conformidade
+- Dashboard com métricas, gráficos e filtro por período
+- Cadastro, filtro e acompanhamento de amostras (CAP 50/70, RR-1C, RR-2C, Imprimer)
+- Registro de ensaios com validação automática conforme normas DNIT
+- Fluxo de revisão de laudos (Coordenador aprova antes de oficializar)
 - Geração de laudos em HTML e PDF
-- Login com senhas criptografadas
-- Parâmetros baseados em normas DNIT
-- Produtos reais da Capetro (CAP 50/70, RR-1C, RR-2C, Imprimer)
+- Histórico completo de alterações (rastreabilidade)
+- Backup automático do banco (a cada 24h) + backup manual pelo painel
+- Gestão de usuários com 4 perfis de acesso (Técnico, Coordenador, Gerente, Administrador)
+
+## Segurança
+
+- Senhas criptografadas
+- Proteção CSRF em todos os formulários
+- Rate limiting no login (bloqueia após 5 tentativas)
+- Timeout por inatividade (30 min, client-side)
+- "Lembrar de mim" com sessão de 30 dias
 
 ## Tecnologias
 
