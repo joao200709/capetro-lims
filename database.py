@@ -74,7 +74,7 @@ class DBWrapper:
                 result = cursor.fetchone()
                 if result:
                     lastrowid = result.get('id') if isinstance(result, dict) else result[0]
-            except Exception:
+            except (psycopg2.ProgrammingError, IndexError, AttributeError):
                 pass
 
         return CursorWrapper(cursor, lastrowid)
@@ -172,6 +172,19 @@ def init_db():
         "ALTER TABLE amostras ADD COLUMN IF NOT EXISTS data_revisao TEXT",
     ]
     for sql in migrations:
+        cursor.execute(sql)
+
+    # Índices para consultas frequentes
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_amostras_status ON amostras(status)",
+        "CREATE INDEX IF NOT EXISTS idx_amostras_produto_id ON amostras(produto_id)",
+        "CREATE INDEX IF NOT EXISTS idx_amostras_data_coleta ON amostras(data_coleta)",
+        "CREATE INDEX IF NOT EXISTS idx_resultados_amostra_id ON resultados(amostra_id)",
+        "CREATE INDEX IF NOT EXISTS idx_resultados_parametro_id ON resultados(parametro_id)",
+        "CREATE INDEX IF NOT EXISTS idx_parametros_produto_id ON parametros_ensaio(produto_id)",
+        "CREATE INDEX IF NOT EXISTS idx_historico_usuario_id ON historico(usuario_id)",
+    ]
+    for sql in indexes:
         cursor.execute(sql)
 
     conn.commit()

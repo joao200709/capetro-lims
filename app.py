@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data, db_needs_init
-from backup import fazer_backup, listar_backups
+from backup import fazer_backup, listar_backups, BACKUP_DIR
 from functools import wraps
 from datetime import datetime, timedelta
+import unicodedata
 import threading
 import tempfile
 import os
@@ -39,6 +40,10 @@ PERFIL_LABELS = {
 
 
 # --- Queries reutilizadas em varias rotas ---
+
+def buscar_produtos(db):
+    return db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
+
 
 def buscar_amostra(db, amostra_id, com_descricao=False):
     campos = 'a.*, p.nome as produto_nome'
@@ -139,7 +144,6 @@ def filtro_status_class(valor):
     """Converte status para classe CSS (ex: 'Em Revisão' -> 'em-revisao')."""
     if not valor:
         return ''
-    import unicodedata
     s = unicodedata.normalize('NFD', valor.lower())
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
     return s.replace(' ', '-')
@@ -158,63 +162,44 @@ def injetar_notificacoes():
         db = get_db()
         notificacoes = []
 
-        # Amostras reprovadas nos ultimos 30 dias
-        reprovadas = db.execute('''
-            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
+        limite_pendente = (datetime.now() - timedelta(days=DIAS_PENDENTE_ALERTA)).strftime('%Y-%m-%d')
+        inicio_mes = datetime.now().strftime('%Y-%m-%d')[:8] + '01'
+
+        # Uma única query para todas as notificações
+        rows = db.execute('''
+            SELECT a.id, a.numero_lote, a.data_coleta, a.status, p.nome as produto
             FROM amostras a
             JOIN produtos p ON a.produto_id = p.id
-            WHERE a.status = 'Reprovada'
-            AND a.data_coleta >= ?
+            WHERE (a.status = 'Reprovada' AND a.data_coleta >= ?)
+               OR (a.status = 'Pendente' AND a.data_coleta <= ?)
+               OR (a.status = 'Em Revisão')
             ORDER BY a.data_coleta DESC
-            LIMIT 10
-        ''', [datetime.now().strftime('%Y-%m-%d')[:8] + '01']).fetchall()
+            LIMIT 30
+        ''', [inicio_mes, limite_pendente]).fetchall()
 
-        for r in reprovadas:
-            notificacoes.append({
-                'tipo': 'reprovada',
-                'texto': f'{r["produto"]} — Lote {r["numero_lote"]} reprovada',
-                'data': r['data_coleta'],
-                'url': f'/amostras/{r["id"]}'
-            })
-
-        # Amostras pendentes ha mais de X dias
-        limite = (datetime.now() - timedelta(days=DIAS_PENDENTE_ALERTA)).strftime('%Y-%m-%d')
-        pendentes = db.execute('''
-            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
-            FROM amostras a
-            JOIN produtos p ON a.produto_id = p.id
-            WHERE a.status = 'Pendente'
-            AND a.data_coleta <= ?
-            ORDER BY a.data_coleta ASC
-            LIMIT 10
-        ''', [limite]).fetchall()
-
-        for p in pendentes:
-            dias = (datetime.now() - datetime.strptime(p['data_coleta'], '%Y-%m-%d')).days
-            notificacoes.append({
-                'tipo': 'pendente',
-                'texto': f'{p["produto"]} — Lote {p["numero_lote"]} pendente há {dias} dias',
-                'data': p['data_coleta'],
-                'url': f'/amostras/{p["id"]}'
-            })
-
-        # Amostras aguardando revisão do coordenador
-        em_revisao = db.execute('''
-            SELECT a.id, a.numero_lote, a.data_coleta, p.nome as produto
-            FROM amostras a
-            JOIN produtos p ON a.produto_id = p.id
-            WHERE a.status = 'Em Revisão'
-            ORDER BY a.data_coleta ASC
-            LIMIT 10
-        ''').fetchall()
-
-        for r in em_revisao:
-            notificacoes.append({
-                'tipo': 'revisao',
-                'texto': f'{r["produto"]} — Lote {r["numero_lote"]} aguardando revisão',
-                'data': r['data_coleta'],
-                'url': f'/amostras/{r["id"]}'
-            })
+        for r in rows:
+            if r['status'] == 'Reprovada':
+                notificacoes.append({
+                    'tipo': 'reprovada',
+                    'texto': f'{r["produto"]} — Lote {r["numero_lote"]} reprovada',
+                    'data': r['data_coleta'],
+                    'url': f'/amostras/{r["id"]}'
+                })
+            elif r['status'] == 'Pendente':
+                dias = (datetime.now() - datetime.strptime(r['data_coleta'], '%Y-%m-%d')).days
+                notificacoes.append({
+                    'tipo': 'pendente',
+                    'texto': f'{r["produto"]} — Lote {r["numero_lote"]} pendente há {dias} dias',
+                    'data': r['data_coleta'],
+                    'url': f'/amostras/{r["id"]}'
+                })
+            elif r['status'] == 'Em Revisão':
+                notificacoes.append({
+                    'tipo': 'revisao',
+                    'texto': f'{r["produto"]} — Lote {r["numero_lote"]} aguardando revisão',
+                    'data': r['data_coleta'],
+                    'url': f'/amostras/{r["id"]}'
+                })
 
         db.close()
         return {'notificacoes': notificacoes, 'total_notificacoes': len(notificacoes), 'TIMEOUT_INATIVIDADE': TIMEOUT_INATIVIDADE}
@@ -303,7 +288,7 @@ def login():
             session['usuario_id'] = usuario['id']
             session['usuario_nome'] = usuario['nome']
             session['usuario_cargo'] = usuario['cargo']
-            session['usuario_perfil'] = usuario['perfil'] if 'perfil' in usuario.keys() else 'tecnico'
+            session['usuario_perfil'] = usuario['perfil'] if 'perfil' in usuario else 'tecnico'
             session['ultima_atividade'] = time.time()
             flash(f'Bem-vindo, {usuario["nome"]}!', 'success')
             return redirect(url_for('dashboard'))
@@ -421,27 +406,31 @@ def dashboard():
     elif periodo == '1a':
         filtro_data = " AND a.data_coleta >= (CURRENT_DATE - INTERVAL '1 year')::text"
     elif periodo == 'custom':
-        data_inicio = request.args.get('data_inicio', '')
-        data_fim = request.args.get('data_fim', '')
+        data_inicio = request.args.get('data_inicio', '').strip()
+        data_fim = request.args.get('data_fim', '').strip()
         if data_inicio and data_fim:
-            filtro_data = " AND a.data_coleta >= ? AND a.data_coleta <= ?"
-            params_data = [data_inicio, data_fim]
+            try:
+                datetime.strptime(data_inicio, '%Y-%m-%d')
+                datetime.strptime(data_fim, '%Y-%m-%d')
+                filtro_data = " AND a.data_coleta >= ? AND a.data_coleta <= ?"
+                params_data = [data_inicio, data_fim]
+            except ValueError:
+                flash('Datas inválidas no período personalizado.', 'error')
 
-    total_amostras = db.execute(
-        f'SELECT COUNT(*) FROM amostras a WHERE 1=1{filtro_data}', params_data
-    ).fetchone()[0]
-    aprovadas = db.execute(
-        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Aprovada'{filtro_data}", params_data
-    ).fetchone()[0]
-    reprovadas = db.execute(
-        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Reprovada'{filtro_data}", params_data
-    ).fetchone()[0]
-    pendentes = db.execute(
-        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Pendente'{filtro_data}", params_data
-    ).fetchone()[0]
-    em_revisao = db.execute(
-        f"SELECT COUNT(*) FROM amostras a WHERE status = 'Em Revisão'{filtro_data}", params_data
-    ).fetchone()[0]
+    contagens = db.execute(f'''
+        SELECT COUNT(*) as total,
+            SUM(CASE WHEN a.status = 'Aprovada' THEN 1 ELSE 0 END) as aprovadas,
+            SUM(CASE WHEN a.status = 'Reprovada' THEN 1 ELSE 0 END) as reprovadas,
+            SUM(CASE WHEN a.status = 'Pendente' THEN 1 ELSE 0 END) as pendentes,
+            SUM(CASE WHEN a.status = 'Em Revisão' THEN 1 ELSE 0 END) as em_revisao
+        FROM amostras a WHERE 1=1{filtro_data}
+    ''', params_data).fetchone()
+
+    total_amostras = contagens['total'] or 0
+    aprovadas = contagens['aprovadas'] or 0
+    reprovadas = contagens['reprovadas'] or 0
+    pendentes = contagens['pendentes'] or 0
+    em_revisao = contagens['em_revisao'] or 0
 
     total_finalizadas = aprovadas + reprovadas
     taxa_conformidade = round((aprovadas / total_finalizadas * 100), 1) if total_finalizadas > 0 else 0
@@ -460,7 +449,7 @@ def dashboard():
         SELECT p.nome, COUNT(a.id) as total
         FROM produtos p
         LEFT JOIN amostras a ON p.id = a.produto_id{join_filtro}
-        GROUP BY p.id
+        GROUP BY p.id, p.nome
         ORDER BY total DESC
     ''', params_data).fetchall()
 
@@ -470,7 +459,7 @@ def dashboard():
             SUM(CASE WHEN a.status = 'Reprovada' THEN 1 ELSE 0 END) as reprovadas
         FROM produtos p
         LEFT JOIN amostras a ON p.id = a.produto_id AND a.status IN ('Aprovada', 'Reprovada'){filtro_data}
-        GROUP BY p.id
+        GROUP BY p.id, p.nome
     ''', params_data).fetchall()
 
     # Tendencia mensal: amostras por mes nos ultimos 12 meses
@@ -548,7 +537,7 @@ def listar_amostras():
     params.extend([por_pagina, (pagina - 1) * por_pagina])
 
     amostras = db.execute(query, params).fetchall()
-    produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
+    produtos = buscar_produtos(db)
     db.close()
 
     return render_template('amostras/lista.html',
@@ -567,6 +556,7 @@ def listar_amostras():
 @login_required
 def nova_amostra():
     db = get_db()
+    produtos = buscar_produtos(db)
 
     if request.method == 'POST':
         produto_id = request.form.get('produto_id', '').strip()
@@ -578,13 +568,18 @@ def nova_amostra():
 
         if not all([produto_id, numero_lote, data_coleta, responsavel]):
             flash('Preencha todos os campos.', 'error')
-            produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
+            db.close()
+            return render_template('amostras/nova.html', produtos=produtos, form=form_data)
+
+        try:
+            produto_id = int(produto_id)
+        except ValueError:
+            flash('Produto inválido.', 'error')
             db.close()
             return render_template('amostras/nova.html', produtos=produtos, form=form_data)
 
         if data_coleta > datetime.now().strftime('%Y-%m-%d'):
             flash('A data de coleta não pode ser depois de hoje.', 'error')
-            produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
             db.close()
             return render_template('amostras/nova.html', produtos=produtos, form=form_data)
 
@@ -612,7 +607,6 @@ def nova_amostra():
         flash('Amostra cadastrada com sucesso!', 'success')
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
-    produtos = db.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
     db.close()
     return render_template('amostras/nova.html', produtos=produtos)
 
@@ -693,6 +687,8 @@ def registrar_ensaios(amostra_id):
     amostra, redir = buscar_amostra_ou_redirecionar(db, amostra_id)
     if redir: return redir
 
+    resultados_tpl = buscar_resultados(db, amostra_id)
+
     if request.method == 'POST':
         tecnico = request.form.get('tecnico', '').strip()
         data_ensaio = request.form.get('data_ensaio', '').strip()
@@ -705,58 +701,59 @@ def registrar_ensaios(amostra_id):
 
         if not tecnico or not data_ensaio:
             flash('Preencha o técnico e a data do ensaio.', 'error')
-            resultados = buscar_resultados(db, amostra_id)
             db.close()
-            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados_tpl, form=form_data)
 
         if data_ensaio > datetime.now().strftime('%Y-%m-%d'):
             flash('A data do ensaio não pode ser depois de hoje.', 'error')
-            resultados = buscar_resultados(db, amostra_id)
             db.close()
-            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados_tpl, form=form_data)
 
         if data_ensaio < amostra['data_coleta']:
             flash('A data do ensaio não pode ser antes da data de coleta da amostra.', 'error')
-            resultados = buscar_resultados(db, amostra_id)
             db.close()
-            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados, form=form_data)
+            return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados_tpl, form=form_data)
 
-        todos_conformes = True
-
-        resultados = db.execute('''
+        resultados_db = db.execute('''
             SELECT r.id, pe.valor_minimo, pe.valor_maximo
             FROM resultados r
             JOIN parametros_ensaio pe ON r.parametro_id = pe.id
             WHERE r.amostra_id = ?
         ''', [amostra_id]).fetchall()
 
-        for resultado in resultados:
+        # Validar todos os valores ANTES de fazer qualquer UPDATE
+        valores_processados = []
+        for resultado in resultados_db:
             campo = f'valor_{resultado["id"]}'
             valor_str = request.form.get(campo, '').strip()
 
-            if valor_str:
-                try:
-                    valor = float(valor_str)
-                except ValueError:
-                    flash('Valor inválido encontrado. Use apenas números.', 'error')
-                    resultados = buscar_resultados(db, amostra_id)
-                    db.close()
-                    return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados)
+            if not valor_str:
+                flash('Todos os parâmetros devem ser preenchidos.', 'error')
+                db.close()
+                return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados_tpl)
 
-                conforme = 1
-                if resultado['valor_minimo'] is not None and valor < resultado['valor_minimo']:
-                    conforme = 0
-                if resultado['valor_maximo'] is not None and valor > resultado['valor_maximo']:
-                    conforme = 0
+            try:
+                valor = float(valor_str)
+            except ValueError:
+                flash('Valor inválido encontrado. Use apenas números.', 'error')
+                db.close()
+                return render_template('ensaios/registrar.html', amostra=amostra, resultados=resultados_tpl)
 
-                if conforme == 0:
-                    todos_conformes = False
+            conforme = 1
+            if resultado['valor_minimo'] is not None and valor < resultado['valor_minimo']:
+                conforme = 0
+            if resultado['valor_maximo'] is not None and valor > resultado['valor_maximo']:
+                conforme = 0
 
-                db.execute('''
-                    UPDATE resultados
-                    SET valor_obtido = ?, conforme = ?, data_ensaio = ?, tecnico = ?
-                    WHERE id = ?
-                ''', [valor, conforme, data_ensaio, tecnico, resultado['id']])
+            valores_processados.append((valor, conforme, resultado['id']))
+
+        # Todos válidos — agora sim faz os UPDATEs
+        for valor, conforme, resultado_id in valores_processados:
+            db.execute('''
+                UPDATE resultados
+                SET valor_obtido = ?, conforme = ?, data_ensaio = ?, tecnico = ?
+                WHERE id = ?
+            ''', [valor, conforme, data_ensaio, tecnico, resultado_id])
 
         db.execute('UPDATE amostras SET status = ? WHERE id = ?', ['Em Revisão', amostra_id])
         registrar_historico(db, 'Registrou ensaios', 'Amostra', amostra_id, 'Aguardando revisão do coordenador')
@@ -767,12 +764,11 @@ def registrar_ensaios(amostra_id):
         flash('Ensaios registrados! Aguardando revisão do coordenador.', 'success')
         return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
-    resultados = buscar_resultados(db, amostra_id)
     db.close()
 
     return render_template('ensaios/registrar.html',
         amostra=amostra,
-        resultados=resultados
+        resultados=resultados_tpl
     )
 
 
@@ -780,10 +776,8 @@ def registrar_ensaios(amostra_id):
 
 @app.route('/laudos/<int:amostra_id>/revisar', methods=['POST'])
 @login_required
+@perfil_minimo('coordenador')
 def revisar_laudo(amostra_id):
-    if session.get('usuario_perfil') not in ['coordenador', 'gerente', 'admin']:
-        flash('Apenas coordenadores, gerentes ou administradores podem revisar laudos.', 'error')
-        return redirect(url_for('detalhe_amostra', amostra_id=amostra_id))
 
     decisao = request.form.get('decisao')
     if decisao not in ['aprovar', 'reprovar']:
@@ -1151,22 +1145,16 @@ def erro_interno(e):
 
 @app.route('/backups')
 @login_required
+@perfil_minimo('admin')
 def pagina_backups():
-    if session.get('usuario_perfil') != 'admin':
-        flash('Apenas administradores podem acessar os backups.', 'error')
-        return redirect(url_for('dashboard'))
-
     backups = listar_backups()
     return render_template('backups.html', backups=backups)
 
 
 @app.route('/backups/criar', methods=['POST'])
 @login_required
+@perfil_minimo('admin')
 def criar_backup():
-    if session.get('usuario_perfil') != 'admin':
-        flash('Apenas administradores podem criar backups.', 'error')
-        return redirect(url_for('dashboard'))
-
     sucesso, resultado = fazer_backup()
     if sucesso:
         db = get_db()
@@ -1182,16 +1170,12 @@ def criar_backup():
 
 @app.route('/backups/download/<nome>')
 @login_required
+@perfil_minimo('admin')
 def download_backup(nome):
-    if session.get('usuario_perfil') != 'admin':
-        flash('Apenas administradores podem baixar backups.', 'error')
-        return redirect(url_for('dashboard'))
-
     # Proteger contra path traversal
     if '/' in nome or '\\' in nome or '..' in nome:
         abort(404)
 
-    from backup import BACKUP_DIR
     caminho = os.path.join(BACKUP_DIR, nome)
     if not os.path.isfile(caminho):
         flash('Backup não encontrado.', 'error')
