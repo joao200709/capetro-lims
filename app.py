@@ -12,8 +12,8 @@ import time
 import secrets
 
 app = Flask(__name__)
-# Chave hardcodada temporariamente, em producao definir SECRET_KEY como variavel de ambiente
-app.secret_key = os.environ.get('SECRET_KEY', 'capetro-lims-dev-key')
+# Em produção, defina SECRET_KEY como variável de ambiente para manter sessões entre reinícios
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
 TIMEOUT_INATIVIDADE = 30  # minutos
 
@@ -121,6 +121,15 @@ def validar_csrf():
 
 # Disponibiliza o token nos templates via {{ csrf_token() }}
 app.jinja_env.globals['csrf_token'] = gerar_csrf_token
+
+
+@app.after_request
+def adicionar_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    return response
 
 
 @app.template_filter('data_br')
@@ -374,10 +383,11 @@ def criar_usuario():
     return render_template('usuarios/novo.html', perfil_labels=perfis_disponiveis)
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
     session.clear()
-    if request.args.get('motivo') == 'inatividade':
+    motivo = request.args.get('motivo') or request.form.get('motivo')
+    if motivo == 'inatividade':
         flash('Sessão expirada por inatividade. Faça login novamente.', 'error')
     else:
         flash('Você saiu do sistema.', 'success')
@@ -1209,8 +1219,8 @@ def iniciar_backup_agendado():
 
 
 if __name__ == '__main__':
-    # Em producao, rodar com debug=False (ou usar gunicorn/waitress)
-    debug = os.environ.get('FLASK_ENV') != 'production'
+    # Debug desligado por padrão — para ligar: set FLASK_DEBUG=1
+    debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true')
     # Iniciar backup agendado apenas no processo principal (evitar duplicata no reloader)
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         iniciar_backup_agendado()

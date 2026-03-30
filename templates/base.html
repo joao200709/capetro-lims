@@ -163,10 +163,13 @@
                         {{ session.usuario_nome }}
                         <span style="font-size: 11px; opacity: 0.7;">({{ session.get('usuario_perfil', 'tecnico')|capitalize }})</span>
                     </span>
-                    <a href="{{ url_for('logout') }}" class="btn-outline" style="padding: 5px 12px; font-size: 12px;"
-                       onclick="return confirm('Tem certeza que deseja sair do sistema?');">
-                        <i class="bi bi-box-arrow-right"></i> Sair
-                    </a>
+                    <form action="{{ url_for('logout') }}" method="POST" style="display:inline; margin:0;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-outline" style="padding: 5px 12px; font-size: 12px; cursor: pointer; border: none; background: none;"
+                                onclick="return confirm('Tem certeza que deseja sair do sistema?');">
+                            <i class="bi bi-box-arrow-right"></i> Sair
+                        </button>
+                    </form>
                 </div>
                 {% endif %}
             </div>
@@ -245,7 +248,21 @@
         function resetTimer() {
             clearTimeout(timeout);
             timeout = setTimeout(function() {
-                window.location.href = '{{ url_for("logout") }}?motivo=inatividade';
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{{ url_for("logout") }}';
+                var csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = '_csrf_token';
+                csrf.value = '{{ csrf_token() }}';
+                var motivo = document.createElement('input');
+                motivo.type = 'hidden';
+                motivo.name = 'motivo';
+                motivo.value = 'inatividade';
+                form.appendChild(csrf);
+                form.appendChild(motivo);
+                document.body.appendChild(form);
+                form.submit();
             }, TIMEOUT_MIN * 60 * 1000);
         }
 

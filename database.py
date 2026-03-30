@@ -4,11 +4,10 @@ import psycopg2
 import psycopg2.extras
 from werkzeug.security import generate_password_hash
 
-# Senha hardcodada temporariamente, em producao usar variavel de ambiente
-DATABASE_URL = os.environ.get(
-    'DATABASE_URL',
-    'postgresql://postgres:unicompra@localhost:5432/capetro-lims'
-)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    # Fallback para desenvolvimento local — em produção, defina a variável de ambiente
+    DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/capetro-lims'
 
 
 class DictRow:
