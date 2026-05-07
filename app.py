@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, seed_data, db_needs_init
 from backup import fazer_backup, listar_backups, BACKUP_DIR
+from config import FLASK_DEBUG, SECRET_KEY
 from functools import wraps
 from datetime import datetime, timedelta
 import unicodedata
@@ -12,8 +13,7 @@ import time
 import secrets
 
 app = Flask(__name__)
-# Em produção, defina SECRET_KEY como variável de ambiente para manter sessões entre reinícios
-app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+app.secret_key = SECRET_KEY
 app.permanent_session_lifetime = timedelta(days=30)
 TIMEOUT_INATIVIDADE = 30  # minutos
 
@@ -1219,8 +1219,8 @@ def iniciar_backup_agendado():
 
 
 if __name__ == '__main__':
-    # Debug desligado por padrão — para ligar: set FLASK_DEBUG=1
-    debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true')
+    # Debug desligado por padrão — para ligar: FLASK_DEBUG=1 no .env
+    debug = FLASK_DEBUG
     # Iniciar backup agendado apenas no processo principal (evitar duplicata no reloader)
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         iniciar_backup_agendado()

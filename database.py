@@ -1,13 +1,10 @@
-import os
 import random
 import psycopg2
 import psycopg2.extras
 from werkzeug.security import generate_password_hash
+from config import require_database_url
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if not DATABASE_URL:
-    # Fallback para desenvolvimento local — em produção, defina a variável de ambiente
-    DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/capetro-lims'
+DATABASE_URL = require_database_url()
 
 
 class DictRow:

@@ -4,9 +4,11 @@ import glob
 from datetime import datetime
 from urllib.parse import urlparse
 from database import DATABASE_URL
+from config import BACKUP_DIR as CONFIG_BACKUP_DIR
 
-# Diretório de backups (relativo ao app)
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
+# Diretório de backups (configurável por BACKUP_DIR no .env)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKUP_DIR = os.path.abspath(os.path.join(BASE_DIR, CONFIG_BACKUP_DIR)) if CONFIG_BACKUP_DIR else os.path.join(BASE_DIR, 'backups')
 MAX_BACKUPS = 30  # Manter últimos 30 backups
 
 

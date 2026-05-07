@@ -105,6 +105,23 @@
         .input-group .form-control {
             border-left: none;
         }
+        .password-toggle {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-left: none;
+            color: #6b7280;
+            padding: 0 12px;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+        }
+        .password-toggle:hover {
+            color: #1a73e8;
+            background: #f8f9fb;
+        }
+        .password-toggle:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.12);
+        }
     </style>
 </head>
 <body>
@@ -140,7 +157,10 @@
                     <label class="form-label">Senha</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" name="senha" class="form-control" placeholder="Digite sua senha" required>
+                        <input type="password" name="senha" id="senha" class="form-control" placeholder="Digite sua senha" required>
+                        <button type="button" class="password-toggle" id="toggle-senha" title="Mostrar senha" aria-label="Mostrar senha" aria-pressed="false">
+                            <i class="bi bi-eye"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -163,5 +183,22 @@
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            var senha = document.getElementById('senha');
+            var toggle = document.getElementById('toggle-senha');
+            var icon = toggle.querySelector('i');
+
+            toggle.addEventListener('click', function() {
+                var mostrar = senha.type === 'password';
+                senha.type = mostrar ? 'text' : 'password';
+                icon.className = mostrar ? 'bi bi-eye-slash' : 'bi bi-eye';
+                toggle.title = mostrar ? 'Esconder senha' : 'Mostrar senha';
+                toggle.setAttribute('aria-label', toggle.title);
+                toggle.setAttribute('aria-pressed', mostrar ? 'true' : 'false');
+                senha.focus();
+            });
+        })();
+    </script>
 </body>
 </html>
